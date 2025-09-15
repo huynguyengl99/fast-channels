@@ -2,7 +2,14 @@ src = ["fast-channels", "tests"]
 target-version = "py311"
 
 [lint]
+ignore = [
+  "E501",  # line too long, handled by black
+  "N818"  # Exception name follow django-channels
+]
 select = ["B", "C90", "E", "F", "I", "N", "N", "PL", "Q", "UP", "W"]
 
 [lint.isort]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[lint.per-file-ignores]
+"fast_channels/layers/redis/*" = ["C901", "PLR0913", 'PLR0912', 'PLR0915']

@@ -3,7 +3,11 @@ build-backend = "hatchling.build"
 requires = ["hatchling"]
 
 [dependency-groups]
-dev = ["commitizen>=4.4.1,<5"]
+dev = [
+  "commitizen>=4.4.1,<5",
+  "fastapi>=0.116.1",
+  "uvicorn[standard]>=0.35.0"
+]
 docs = [
   "Sphinx>=7.0.0,<8",
   "myst-parser>=4.0.1",
@@ -53,6 +57,15 @@ name = "fast-channels"
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
 version = "0.0.1"
+
+[project.optional-dependencies]
+redis = [
+  "msgpack",
+  "redis"
+]
+with-test = [
+  "asgiref>=3,<4"
+]
 
 [project.urls]
 Documentation = "https://fast-channels.readthedocs.io/"
