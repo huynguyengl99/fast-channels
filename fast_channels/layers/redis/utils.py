@@ -1,10 +1,18 @@
 import binascii
 import types
+from asyncio import AbstractEventLoop
+from typing import TYPE_CHECKING
 
 from redis import asyncio as aioredis
 
+from .types import ChannelDecodedRedisHost, ChannelRawRedisHost
 
-def _consistent_hash(value, ring_size):
+if TYPE_CHECKING:
+    from .core import RedisChannelLayer  # noqa
+    from .pubsub import RedisPubSubChannelLayer  # noqa
+
+
+def _consistent_hash(value: str | bytes, ring_size: int) -> int:
     """
     Maps the value to a node value between 0 and 4095
     using CRC, then down to one of the ring nodes.
@@ -20,7 +28,9 @@ def _consistent_hash(value, ring_size):
     return int(bigval / ring_divisor)
 
 
-def _wrap_close(proxy, loop):
+def _wrap_close(
+    proxy: "RedisChannelLayer | RedisPubSubChannelLayer", loop: AbstractEventLoop
+) -> None:
     original_impl = loop.close
 
     def _wrapper(self, *args, **kwargs):
@@ -35,7 +45,7 @@ def _wrap_close(proxy, loop):
     loop.close = types.MethodType(_wrapper, loop)
 
 
-async def _close_redis(connection):
+async def _close_redis(connection: aioredis.Redis) -> None:
     """
     Handle compatibility with redis-py 4.x and 5.x close methods
     """
@@ -45,7 +55,9 @@ async def _close_redis(connection):
         await connection.close(close_connection_pool=True)
 
 
-def decode_hosts(hosts):
+def decode_hosts(
+    hosts: list[ChannelRawRedisHost] | None,
+) -> list[ChannelDecodedRedisHost]:
     """
     Takes the value of the "hosts" argument and returns
     a list of kwargs to use for the Redis connection constructor.
@@ -71,7 +83,7 @@ def decode_hosts(hosts):
     return result
 
 
-def create_pool(host):
+def create_pool(host: ChannelDecodedRedisHost) -> aioredis.ConnectionPool:
     """
     Takes the value of the "host" argument and returns a suited connection pool to
     the corresponding redis instance.

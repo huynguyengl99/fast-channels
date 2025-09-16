@@ -1,6 +1,12 @@
 import fnmatch
 import re
 
+from fast_channels.types import (
+    ChannelCapacityDict,
+    ChannelMessage,
+    CompiledChannelCapacity,
+)
+
 
 class BaseChannelLayer:
     """
@@ -8,14 +14,24 @@ class BaseChannelLayer:
     common functionality. Compatible with Django Channels API.
     """
 
-    MAX_NAME_LENGTH = 100
+    MAX_NAME_LENGTH: int = 100
+    expiry: int
+    capacity: int
+    channel_capacity: ChannelCapacityDict | CompiledChannelCapacity
 
-    def __init__(self, expiry=60, capacity=100, channel_capacity=None):
+    def __init__(
+        self,
+        expiry: int = 60,
+        capacity: int = 100,
+        channel_capacity: ChannelCapacityDict | None = None,
+    ):
         self.expiry = expiry
         self.capacity = capacity
         self.channel_capacity = self.compile_capacities(channel_capacity or {})
 
-    def compile_capacities(self, channel_capacity):
+    def compile_capacities(
+        self, channel_capacity: ChannelCapacityDict
+    ) -> CompiledChannelCapacity:
         """
         Takes an input channel_capacity dict and returns the compiled list
         of regexes that get_capacity will look for as self.channel_capacity
@@ -30,7 +46,7 @@ class BaseChannelLayer:
                 result.append((re.compile(fnmatch.translate(pattern)), value))
         return result
 
-    def get_capacity(self, channel):
+    def get_capacity(self, channel: str) -> int:
         """
         Gets the correct capacity for the given channel; either the default,
         or a matching result from channel_capacity. Returns the first matching
@@ -42,7 +58,7 @@ class BaseChannelLayer:
                 return capacity
         return self.capacity
 
-    def match_type_and_length(self, name):
+    def match_type_and_length(self, name: str | object) -> bool:
         if isinstance(name, str) and (len(name) < self.MAX_NAME_LENGTH):
             return True
         return False
@@ -56,7 +72,9 @@ class BaseChannelLayer:
         + "containing only ASCII alphanumerics, hyphens, underscores, or periods."
     )
 
-    def require_valid_channel_name(self, name, receive=False):
+    def require_valid_channel_name(
+        self, name: str | object, receive: bool = False
+    ) -> bool:
         if not self.match_type_and_length(name):
             raise TypeError(self.invalid_name_error.format("Channel"))
         if not bool(self.channel_name_regex.match(name)):
@@ -65,14 +83,14 @@ class BaseChannelLayer:
             raise TypeError("Specific channel names in receive() must end at the !")
         return True
 
-    def require_valid_group_name(self, name):
+    def require_valid_group_name(self, name: str | object) -> bool:
         if not self.match_type_and_length(name):
             raise TypeError(self.invalid_name_error.format("Group"))
         if not bool(self.group_name_regex.match(name)):
             raise TypeError(self.invalid_name_error.format("Group"))
         return True
 
-    def non_local_name(self, name):
+    def non_local_name(self, name: str) -> str:
         """
         Given a channel name, returns the "non-local" part. If the channel name
         is a process-specific channel (contains !) this means the part up to
@@ -83,25 +101,25 @@ class BaseChannelLayer:
         else:
             return name
 
-    async def send(self, channel, message):
+    async def send(self, channel: str, message: ChannelMessage) -> None:
         raise NotImplementedError("send() should be implemented in a channel layer")
 
-    async def receive(self, channel):
+    async def receive(self, channel: str) -> ChannelMessage:
         raise NotImplementedError("receive() should be implemented in a channel layer")
 
-    async def new_channel(self, prefix="specific."):
+    async def new_channel(self, prefix: str = "specific.") -> str:
         raise NotImplementedError(
             "new_channel() should be implemented in a channel layer"
         )
 
-    async def flush(self):
+    async def flush(self) -> None:
         raise NotImplementedError("flush() not implemented (flush extension)")
 
-    async def group_add(self, group, channel):
+    async def group_add(self, group: str, channel: str) -> None:
         raise NotImplementedError("group_add() not implemented (groups extension)")
 
-    async def group_discard(self, group, channel):
+    async def group_discard(self, group: str, channel: str) -> None:
         raise NotImplementedError("group_discard() not implemented (groups extension)")
 
-    async def group_send(self, group, message):
+    async def group_send(self, group: str, message: str) -> None:
         raise NotImplementedError("group_send() not implemented (groups extension)")

@@ -1,7 +1,14 @@
 import asyncio
+from collections.abc import Awaitable, Callable
+from typing import Any
+
+from .types import ASGIReceiveCallable
 
 
-async def await_many_dispatch(consumer_callables, dispatch):
+async def await_many_dispatch(
+    consumer_callables: list[Callable[[], Awaitable[ASGIReceiveCallable]]],
+    dispatch: Callable[[Any], Awaitable[None]],
+):
     """
     Given a set of consumer callables, awaits on them all and passes results
     from them to the dispatch awaitable as they come in.
@@ -31,7 +38,7 @@ async def await_many_dispatch(consumer_callables, dispatch):
                 pass
 
 
-def is_same_domain(host, pattern):
+def is_same_domain(host: str, pattern: str) -> bool:
     """
     Return ``True`` if the host is either an exact match or a match
     to the wildcard pattern.

@@ -3,9 +3,14 @@ import random
 import string
 import time
 from copy import deepcopy
+from typing import TypeAlias
 
 from ..exceptions import ChannelFull
+from ..types import ChannelCapacityDict, ChannelMessage
 from .base import BaseChannelLayer
+
+InMemoryQueueData: TypeAlias = tuple[float, ChannelMessage]
+InMemoryGroups: TypeAlias = dict[str, dict[str, float]]
 
 
 class InMemoryChannelLayer(BaseChannelLayer):
@@ -15,26 +20,24 @@ class InMemoryChannelLayer(BaseChannelLayer):
 
     def __init__(
         self,
-        expiry=60,
-        group_expiry=86400,
-        capacity=100,
-        channel_capacity=None,
-        **kwargs,
+        expiry: int = 60,
+        group_expiry: int = 86400,
+        capacity: int = 100,
+        channel_capacity: ChannelCapacityDict | None = None,
     ):
         super().__init__(
             expiry=expiry,
             capacity=capacity,
             channel_capacity=channel_capacity,
-            **kwargs,
         )
-        self.channels = {}
-        self.groups = {}
-        self.group_expiry = group_expiry
+        self.channels: dict[str, asyncio.Queue[InMemoryQueueData]] = {}
+        self.groups: InMemoryGroups = {}
+        self.group_expiry: int = group_expiry
 
     # Channel layer API
     extensions = ["groups", "flush"]
 
-    async def send(self, channel, message):
+    async def send(self, channel: str, message: ChannelMessage) -> None:
         """
         Send a message onto a (general or specific) channel.
         """
@@ -54,7 +57,7 @@ class InMemoryChannelLayer(BaseChannelLayer):
         except asyncio.QueueFull:
             raise ChannelFull(channel) from None
 
-    async def receive(self, channel):
+    async def receive(self, channel: str) -> ChannelMessage:
         """
         Receive the first message that arrives on the channel.
         If more than one coroutine waits on the same channel, a random one
@@ -76,7 +79,7 @@ class InMemoryChannelLayer(BaseChannelLayer):
 
         return message
 
-    async def new_channel(self, prefix="specific."):
+    async def new_channel(self, prefix: str = "specific.") -> str:
         """
         Returns a new channel name that can be used by something in our
         process as a specific channel.
@@ -87,7 +90,7 @@ class InMemoryChannelLayer(BaseChannelLayer):
         )
 
     # Expire cleanup
-    def _clean_expired(self):
+    def _clean_expired(self) -> None:
         """
         Goes through all messages and groups and removes those that are expired.
         Any channel with an expired message is removed from all groups.
@@ -114,15 +117,15 @@ class InMemoryChannelLayer(BaseChannelLayer):
                     channels.pop(name, None)
 
     # Flush extension
-    async def flush(self):
+    async def flush(self) -> None:
         self.channels = {}
         self.groups = {}
 
-    async def close(self):
+    async def close(self) -> None:
         # Nothing to go
         pass
 
-    def _remove_from_groups(self, channel):
+    def _remove_from_groups(self, channel: str) -> None:
         """
         Removes a channel from all groups. Used when a message on it expires.
         """
@@ -130,7 +133,7 @@ class InMemoryChannelLayer(BaseChannelLayer):
             channels.pop(channel, None)
 
     # Groups extension
-    async def group_add(self, group, channel):
+    async def group_add(self, group: str, channel: str) -> None:
         """
         Adds the channel name to a group.
         """
@@ -141,7 +144,7 @@ class InMemoryChannelLayer(BaseChannelLayer):
         self.groups.setdefault(group, {})
         self.groups[group][channel] = time.time()
 
-    async def group_discard(self, group, channel):
+    async def group_discard(self, group: str, channel: str) -> None:
         # Both should be text and valid
         self.require_valid_channel_name(channel)
         self.require_valid_group_name(group)
@@ -154,7 +157,7 @@ class InMemoryChannelLayer(BaseChannelLayer):
             if not group_channels:
                 self.groups.pop(group, None)
 
-    async def group_send(self, group, message):
+    async def group_send(self, group: str, message: ChannelMessage) -> None:
         # Check types
         assert isinstance(message, dict), "Message is not a dict"
         self.require_valid_group_name(group)

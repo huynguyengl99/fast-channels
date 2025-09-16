@@ -3,6 +3,9 @@ import base64
 import hashlib
 import json
 import random
+from typing import Any
+
+from .types import SymmetricEncryptionKeys
 
 try:
     from cryptography.fernet import Fernet, MultiFernet
@@ -17,8 +20,8 @@ class SerializerDoesNotExist(KeyError):
 class BaseMessageSerializer(abc.ABC):
     def __init__(
         self,
-        symmetric_encryption_keys=None,
-        random_prefix_length=0,
+        symmetric_encryption_keys: SymmetricEncryptionKeys | None = None,
+        random_prefix_length: int = 0,
         expiry=None,
     ):
         self.random_prefix_length = random_prefix_length
@@ -26,7 +29,9 @@ class BaseMessageSerializer(abc.ABC):
         # Set up any encryption objects
         self._setup_encryption(symmetric_encryption_keys)
 
-    def _setup_encryption(self, symmetric_encryption_keys):
+    def _setup_encryption(
+        self, symmetric_encryption_keys: SymmetricEncryptionKeys | None
+    ):
         # See if we can do encryption if they asked
         if symmetric_encryption_keys:
             if isinstance(symmetric_encryption_keys, str | bytes):
@@ -42,7 +47,7 @@ class BaseMessageSerializer(abc.ABC):
         else:
             self.crypter = None
 
-    def make_fernet(self, key):
+    def make_fernet(self, key: str | bytes) -> Fernet:
         """
         Given a single encryption key, returns a Fernet instance using it.
         """
@@ -57,14 +62,14 @@ class BaseMessageSerializer(abc.ABC):
         return Fernet(formatted_key)
 
     @abc.abstractmethod
-    def as_bytes(self, message, *args, **kwargs):
+    def as_bytes(self, message: Any, *args: Any, **kwargs: Any) -> bytes:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def from_bytes(self, message, *args, **kwargs):
+    def from_bytes(self, message: bytes, *args, **kwargs) -> Any:
         raise NotImplementedError
 
-    def serialize(self, message):
+    def serialize(self, message: Any) -> bytes:
         """
         Serializes message to a byte string.
         """
@@ -82,7 +87,7 @@ class BaseMessageSerializer(abc.ABC):
             )
         return message
 
-    def deserialize(self, message):
+    def deserialize(self, message: bytes) -> Any:
         """
         Deserializes from a byte string.
         """
@@ -108,7 +113,7 @@ class JSONSerializer(BaseMessageSerializer):
     # thus we must force bytes conversion
     # we use UTF-8 since it is the recommended encoding for interoperability
     # see https://docs.python.org/3/library/json.html#character-encodings
-    def as_bytes(self, message, *args, **kwargs):
+    def as_bytes(self, message: Any, *args: Any, **kwargs: Any) -> bytes:
         message = json.dumps(message, *args, **kwargs)
         return message.encode("utf-8")
 
@@ -138,7 +143,9 @@ class SerializersRegistry:
     def __init__(self):
         self._registry = {}
 
-    def register_serializer(self, format, serializer_class):
+    def register_serializer(
+        self, format: str, serializer_class: type[BaseMessageSerializer]
+    ) -> None:
         """
         Register a new serializer for given format
         """
@@ -155,7 +162,9 @@ class SerializersRegistry:
 
         self._registry[format] = serializer_class
 
-    def get_serializer(self, format, *args, **kwargs):
+    def get_serializer(
+        self, format: str, *args: Any, **kwargs: Any
+    ) -> BaseMessageSerializer:
         try:
             serializer_class = self._registry[format]
         except KeyError:

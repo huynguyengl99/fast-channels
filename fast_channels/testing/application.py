@@ -15,3 +15,14 @@ class ApplicationCommunicator(BaseApplicationCommunicator):
     async def receive_output(self, timeout=1):
         with mock.patch("channels.db.close_old_connections", no_op):
             return await super().receive_output(timeout)
+
+    async def receive_nothing(
+        self, timeout: float = 0.1, interval: float = 0.01
+    ) -> bool:
+        return await super().receive_nothing(timeout, interval)
+
+    async def wait(self, timeout: float = 1) -> None:
+        return await super().wait(timeout)
+
+    def stop(self, exceptions: bool = True) -> None:
+        return super().stop(exceptions)

@@ -1,7 +1,14 @@
 import json
+from collections.abc import Iterable
+from typing import Any, TypeAlias
 from urllib.parse import unquote, urlparse
 
+from ..types import ChannelApplication, ChannelHeaders, ChannelScope
 from .application import ApplicationCommunicator
+
+Connected: TypeAlias = bool
+CloseCodeOrAcceptSubProtocol: TypeAlias = int | str | None
+WebsocketConnectResponse: TypeAlias = tuple[Connected, CloseCodeOrAcceptSubProtocol]
 
 
 class WebsocketCommunicator(ApplicationCommunicator):
@@ -13,12 +20,17 @@ class WebsocketCommunicator(ApplicationCommunicator):
     """
 
     def __init__(
-        self, application, path, headers=None, subprotocols=None, spec_version=None
-    ):
+        self,
+        application: ChannelApplication,
+        path: str,
+        headers: ChannelHeaders | None = None,
+        subprotocols: Iterable[str] | None = None,
+        spec_version: int | None = None,
+    ) -> None:
         if not isinstance(path, str):
             raise TypeError(f"Expected str, got {type(path)}")
         parsed = urlparse(path)
-        self.scope = {
+        self.scope: ChannelScope = {
             "type": "websocket",
             "path": unquote(parsed.path),
             "query_string": parsed.query.encode("utf-8"),
@@ -30,7 +42,7 @@ class WebsocketCommunicator(ApplicationCommunicator):
         super().__init__(application, self.scope)
         self.response_headers = None
 
-    async def connect(self, timeout=1):
+    async def connect(self, timeout: float = 1) -> WebsocketConnectResponse:
         """
         Trigger the connection code.
 
@@ -40,13 +52,15 @@ class WebsocketCommunicator(ApplicationCommunicator):
         await self.send_input({"type": "websocket.connect"})
         response = await self.receive_output(timeout)
         if response["type"] == "websocket.close":
-            return (False, response.get("code", 1000))
+            return False, response.get("code", 1000)
         else:
             assert response["type"] == "websocket.accept"
             self.response_headers = response.get("headers", [])
-            return (True, response.get("subprotocol", None))
+            return True, response.get("subprotocol", None)
 
-    async def send_to(self, text_data=None, bytes_data=None):
+    async def send_to(
+        self, text_data: str | None = None, bytes_data: bytes | None = None
+    ) -> None:
         """
         Sends a WebSocket frame to the application.
         """
@@ -64,13 +78,13 @@ class WebsocketCommunicator(ApplicationCommunicator):
             ), "The bytes_data argument must be bytes"
             await self.send_input({"type": "websocket.receive", "bytes": bytes_data})
 
-    async def send_json_to(self, data):
+    async def send_json_to(self, data: Any) -> None:
         """
         Sends JSON data as a text frame
         """
         await self.send_to(text_data=json.dumps(data))
 
-    async def receive_from(self, timeout=1):
+    async def receive_from(self, timeout: float = 1) -> str | bytes:
         """
         Receives a data frame from the view. Will fail if the connection
         closes instead. Returns either a bytestring or a unicode string
@@ -97,7 +111,7 @@ class WebsocketCommunicator(ApplicationCommunicator):
             ), f"Binary frame payload is not bytes, it is {type(response['bytes'])}"
             return response["bytes"]
 
-    async def receive_json_from(self, timeout=1):
+    async def receive_json_from(self, timeout: float = 1) -> Any:
         """
         Receives a JSON text frame payload and decodes it
         """
@@ -107,7 +121,7 @@ class WebsocketCommunicator(ApplicationCommunicator):
         ), f"JSON data is not a text frame, it is {type(payload)}"
         return json.loads(payload)
 
-    async def disconnect(self, code=1000, timeout=1):
+    async def disconnect(self, code: int = 1000, timeout: float = 1) -> None:
         """
         Closes the socket
         """

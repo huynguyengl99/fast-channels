@@ -1,11 +1,19 @@
 import functools
+from typing import Any, cast
 
 from ..exceptions import StopConsumer
-from ..layers import get_channel_layer
+from ..layers import BaseChannelLayer, get_channel_layer
+from ..types import (
+    ASGIApplicationProtocol,
+    ASGIReceiveCallable,
+    ASGISendCallable,
+    ChannelMessage,
+    ChannelScope,
+)
 from ..utils import await_many_dispatch
 
 
-def get_handler_name(message):
+def get_handler_name(message: ChannelMessage) -> str:
     """
     Looks at a message, checks it has a sensible type, and returns the
     handler name for that type.
@@ -27,17 +35,27 @@ class AsyncConsumer:
     on their type.
     """
 
-    _sync = False
-    channel_layer_alias = None
+    channel_layer_alias: str | None = None
+    scope: ChannelScope
+    channel_layer: BaseChannelLayer | None
+    channel_name: str
+    channel_receive: ASGIReceiveCallable
+    base_send: ASGISendCallable
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(
+        self, scope: ChannelScope, receive: ASGIReceiveCallable, send: ASGISendCallable
+    ) -> None:
         """
         Dispatches incoming messages to type-based handlers asynchronously.
         """
         self.scope = scope
 
         # Initialize channel layer
-        self.channel_layer = get_channel_layer(self.channel_layer_alias)
+        self.channel_layer = (
+            get_channel_layer(self.channel_layer_alias)
+            if self.channel_layer_alias
+            else None
+        )
         if self.channel_layer is not None:
             self.channel_name = await self.channel_layer.new_channel()
             self.channel_receive = functools.partial(
@@ -57,7 +75,7 @@ class AsyncConsumer:
             # Exit cleanly
             pass
 
-    async def dispatch(self, message):
+    async def dispatch(self, message: ChannelMessage) -> None:
         """
         Works out what to do with a message.
         """
@@ -67,14 +85,14 @@ class AsyncConsumer:
         else:
             raise ValueError("No handler for message type {}".format(message["type"]))
 
-    async def send(self, message):
+    async def send(self, message: ChannelMessage) -> None:
         """
         Overrideable/callable-by-subclasses send method.
         """
         await self.base_send(message)
 
     @classmethod
-    def as_asgi(cls, **initkwargs):
+    def as_asgi(cls, **initkwargs: Any) -> ASGIApplicationProtocol:
         """
         Return an ASGI v3 single callable that instantiates a consumer instance
         per scope. Similar in purpose to Django's as_view().
@@ -92,9 +110,9 @@ class AsyncConsumer:
                 return await instance(scope, receive, send)
 
         wrapper = ASGIWrapper()
-        wrapper.endpoint_class = cls
-        wrapper.endpoint_initkwargs = initkwargs
+        wrapper.consumer_class = cls
+        wrapper.consumer_initkwargs = initkwargs
 
         # Take name and docstring from class
         functools.update_wrapper(wrapper, cls, updated=())
-        return wrapper
+        return cast(ASGIApplicationProtocol, wrapper)

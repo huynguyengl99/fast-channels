@@ -12,7 +12,7 @@ class ChannelLayerRegistry:
     """
 
     def __init__(self):
-        self._layers = {}
+        self._layers: dict[str, BaseChannelLayer] = {}
 
     def register(self, alias: str, layer: BaseChannelLayer):
         """

@@ -5,13 +5,22 @@ import itertools
 import logging
 import time
 import uuid
+from asyncio import AbstractEventLoop
+from collections.abc import Iterable
+from typing import Any, Literal, TypeAlias, TypeVar
 
 from redis import asyncio as aioredis
 
 from fast_channels.exceptions import ChannelFull
 from fast_channels.layers.base import BaseChannelLayer
+from fast_channels.types import (
+    ChannelCapacityDict,
+    ChannelMessage,
+    CompiledChannelCapacity,
+)
 
 from .serializers import registry
+from .types import ChannelRawRedisHost, SymmetricEncryptionKeys
 from .utils import (
     _close_redis,
     _consistent_hash,
@@ -32,23 +41,23 @@ class ChannelLock:
     """
 
     def __init__(self):
-        self.locks = collections.defaultdict(asyncio.Lock)
-        self.wait_counts = collections.defaultdict(int)
+        self.locks: dict[str, asyncio.Lock] = collections.defaultdict(asyncio.Lock)
+        self.wait_counts: dict[str, int] = collections.defaultdict(int)
 
-    async def acquire(self, channel):
+    async def acquire(self, channel: str) -> Literal[True]:
         """
         Acquire the lock for the given channel.
         """
         self.wait_counts[channel] += 1
         return await self.locks[channel].acquire()
 
-    def locked(self, channel):
+    def locked(self, channel: str) -> bool:
         """
         Return ``True`` if the lock for the given channel is acquired.
         """
         return self.locks[channel].locked()
 
-    def release(self, channel):
+    def release(self, channel: str) -> None:
         """
         Release the lock for the given channel.
         """
@@ -59,8 +68,11 @@ class ChannelLock:
             del self.wait_counts[channel]
 
 
-class BoundedQueue(asyncio.Queue):
-    def put_nowait(self, item):
+Item = TypeVar("Item")
+
+
+class BoundedQueue(asyncio.Queue[Item]):
+    def put_nowait(self, item: Item):
         if self.full():
             # see: https://github.com/django/channels_redis/issues/212
             # if we actually get into this code block, it likely means that
@@ -73,23 +85,26 @@ class BoundedQueue(asyncio.Queue):
 
 
 class RedisLoopLayer:
-    def __init__(self, channel_layer):
+    def __init__(self, channel_layer: "RedisChannelLayer"):
         self._lock = asyncio.Lock()
         self.channel_layer = channel_layer
         self._connections = {}
 
-    def get_connection(self, index):
+    def get_connection(self, index: int) -> aioredis.Redis:
         if index not in self._connections:
             pool = self.channel_layer.create_pool(index)
             self._connections[index] = aioredis.Redis(connection_pool=pool)
 
         return self._connections[index]
 
-    async def flush(self):
+    async def flush(self) -> None:
         async with self._lock:
             for index in list(self._connections):
                 connection = self._connections.pop(index)
                 await _close_redis(connection)
+
+
+CachedRedisLayers: TypeAlias = dict[AbstractEventLoop, RedisLoopLayer]
 
 
 class RedisChannelLayer(BaseChannelLayer):
@@ -101,19 +116,19 @@ class RedisChannelLayer(BaseChannelLayer):
     encryption are provided.
     """
 
-    brpop_timeout = 5
+    brpop_timeout: int = 5
 
     def __init__(
         self,
-        hosts=None,
-        prefix="asgi",
-        expiry=60,
-        group_expiry=86400,
-        capacity=100,
-        channel_capacity=None,
-        symmetric_encryption_keys=None,
-        random_prefix_length=12,
-        serializer_format="msgpack",
+        hosts: list[ChannelRawRedisHost] | None = None,
+        prefix: str = "asgi",
+        expiry: int = 60,
+        group_expiry: int = 86400,
+        capacity: int = 100,
+        channel_capacity: ChannelCapacityDict | CompiledChannelCapacity | None = None,
+        symmetric_encryption_keys: SymmetricEncryptionKeys = None,
+        random_prefix_length: int = 12,
+        serializer_format: Literal["msgpack", "json"] | str = "msgpack",
     ):
         # Store basic information
         self.expiry = expiry
@@ -134,7 +149,7 @@ class RedisChannelLayer(BaseChannelLayer):
             symmetric_encryption_keys=symmetric_encryption_keys,
         )
         # Cached redis connection pools and the event loop they are from
-        self._layers = {}
+        self._layers: CachedRedisLayers = {}
         # Normal channels choose a host index by cycling through the available hosts
         self._receive_index_generator = itertools.cycle(range(len(self.hosts)))
         self._send_index_generator = itertools.cycle(range(len(self.hosts)))
@@ -143,11 +158,11 @@ class RedisChannelLayer(BaseChannelLayer):
         # Number of coroutines trying to receive right now
         self.receive_count = 0
         # The receive lock
-        self.receive_lock = None
+        self.receive_lock: asyncio.Lock | None = None
         # Event loop they are trying to receive on
-        self.receive_event_loop = None
+        self.receive_event_loop: AbstractEventLoop | None = None
         # Buffered messages by process-local channel name
-        self.receive_buffer = collections.defaultdict(
+        self.receive_buffer: dict[str, BoundedQueue] = collections.defaultdict(
             functools.partial(BoundedQueue, self.capacity)
         )
         # Detached channel cleanup tasks
@@ -156,14 +171,14 @@ class RedisChannelLayer(BaseChannelLayer):
         # a message back into the main queue before its cleanup has completed
         self.receive_clean_locks = ChannelLock()
 
-    def create_pool(self, index):
+    def create_pool(self, index: int) -> aioredis.ConnectionPool:
         return create_pool(self.hosts[index])
 
     ### Channel layer API ###
 
     extensions = ["groups", "flush"]
 
-    async def send(self, channel, message):
+    async def send(self, channel: str, message: ChannelMessage) -> None:
         """
         Send a message onto a (general or specific) channel.
         """
@@ -203,13 +218,13 @@ class RedisChannelLayer(BaseChannelLayer):
         await connection.zadd(channel_key, {self.serialize(message): time.time()})
         await connection.expire(channel_key, int(self.expiry))
 
-    def _backup_channel_name(self, channel):
+    def _backup_channel_name(self, channel: str) -> str:
         """
         Construct the key used as a backup queue for the given channel.
         """
         return channel + "$inflight"
 
-    async def _brpop_with_clean(self, index, channel, timeout):
+    async def _brpop_with_clean(self, index: int, channel: str, timeout: float) -> Any:
         """
         Perform a Redis BRPOP and manage the backup processing queue.
         In case of cancellation, make sure the message is not lost.
@@ -240,7 +255,7 @@ class RedisChannelLayer(BaseChannelLayer):
 
         return member
 
-    async def _clean_receive_backup(self, index, channel):
+    async def _clean_receive_backup(self, index: int, channel: str) -> None:
         """
         Pop the oldest message off the channel backup queue.
         The result isn't interesting as it was already processed.
@@ -248,7 +263,7 @@ class RedisChannelLayer(BaseChannelLayer):
         connection = self.connection(index)
         await connection.zpopmin(self._backup_channel_name(channel))
 
-    async def receive(self, channel):
+    async def receive(self, channel: str) -> ChannelMessage:
         """
         Receive the first message that arrives on the channel.
         If more than one coroutine waits on the same channel, the first waiter
@@ -371,7 +386,7 @@ class RedisChannelLayer(BaseChannelLayer):
             # Do a plain direct receive
             return (await self.receive_single(channel))[1]
 
-    async def receive_single(self, channel):
+    async def receive_single(self, channel: str) -> tuple[str, ChannelMessage]:
         """
         Receives a single message off of the channel and returns it.
         """
@@ -428,7 +443,7 @@ class RedisChannelLayer(BaseChannelLayer):
             del message["__asgi_channel__"]
         return channel, message
 
-    async def new_channel(self, prefix="specific"):
+    async def new_channel(self, prefix: str = "specific") -> str:
         """
         Returns a new channel name that can be used by something in our
         process as a specific channel.
@@ -437,7 +452,7 @@ class RedisChannelLayer(BaseChannelLayer):
 
     ### Flush extension ###
 
-    async def flush(self):
+    async def flush(self) -> None:
         """
         Deletes all messages and groups on all shards.
         """
@@ -459,7 +474,7 @@ class RedisChannelLayer(BaseChannelLayer):
         # Now clear the pools as well
         await self.close_pools()
 
-    async def close_pools(self):
+    async def close_pools(self) -> None:
         """
         Close all connections in the event loop pools.
         """
@@ -469,7 +484,7 @@ class RedisChannelLayer(BaseChannelLayer):
         for layer in self._layers.values():
             await layer.flush()
 
-    async def wait_received(self):
+    async def wait_received(self) -> None:
         """
         Wait for all channel cleanup functions to finish.
         """
@@ -478,7 +493,7 @@ class RedisChannelLayer(BaseChannelLayer):
 
     ### Groups extension ###
 
-    async def group_add(self, group, channel):
+    async def group_add(self, group: str, channel: str) -> None:
         """
         Adds the channel name to a group.
         """
@@ -494,7 +509,7 @@ class RedisChannelLayer(BaseChannelLayer):
         # it at this point is guaranteed to expire before that
         await connection.expire(group_key, self.group_expiry)
 
-    async def group_discard(self, group, channel):
+    async def group_discard(self, group: str, channel: str) -> None:
         """
         Removes the channel from the named group if it is in the group;
         does nothing otherwise (does not error)
@@ -505,7 +520,7 @@ class RedisChannelLayer(BaseChannelLayer):
         connection = self.connection(self.consistent_hash(group))
         await connection.zrem(key, channel)
 
-    async def group_send(self, group, message):
+    async def group_send(self, group: str, message: ChannelMessage) -> None:
         """
         Sends a message to the entire group.
         """
@@ -582,7 +597,9 @@ class RedisChannelLayer(BaseChannelLayer):
                     group,
                 )
 
-    def _map_channel_keys_to_connection(self, channel_names, message):
+    def _map_channel_keys_to_connection(
+        self, channel_names: Iterable[str], message: ChannelMessage
+    ) -> tuple[dict[str, list[str]], dict[str, Any], dict[str, Any]]:
         """
         For a list of channel names, GET
 
@@ -632,7 +649,7 @@ class RedisChannelLayer(BaseChannelLayer):
             channel_key_to_capacity,
         )
 
-    def _group_key(self, group):
+    def _group_key(self, group: str) -> bytes:
         """
         Common function to make the storage key for the group.
         """
@@ -640,13 +657,13 @@ class RedisChannelLayer(BaseChannelLayer):
 
     ### Serialization ###
 
-    def serialize(self, message):
+    def serialize(self, message: ChannelMessage) -> bytes:
         """
         Serializes message to a byte string.
         """
         return self._serializer.serialize(message)
 
-    def deserialize(self, message):
+    def deserialize(self, message: bytes) -> ChannelMessage:
         """
         Deserializes from a byte string.
         """
@@ -654,15 +671,15 @@ class RedisChannelLayer(BaseChannelLayer):
 
     ### Internal functions ###
 
-    def consistent_hash(self, value):
+    def consistent_hash(self, value: str | bytes) -> int:
         return _consistent_hash(value, self.ring_size)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.__class__.__name__}(hosts={self.hosts})"
 
     ### Connection handling ###
 
-    def connection(self, index):
+    def connection(self, index: int) -> aioredis.Redis:
         """
         Returns the correct connection for the index given.
         Lazily instantiates pools.

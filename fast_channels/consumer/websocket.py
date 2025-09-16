@@ -1,10 +1,19 @@
 import json
+from typing import Any
 
 from ..exceptions import (
     AcceptConnection,
     DenyConnection,
     InvalidChannelLayerError,
     StopConsumer,
+)
+from ..types import (
+    ChannelHeaders,
+    WebSocketAcceptEvent,
+    WebSocketCloseEvent,
+    WebSocketConnectEvent,
+    WebSocketDisconnectEvent,
+    WebSocketReceiveEvent,
 )
 from .base import AsyncConsumer
 
@@ -15,13 +24,13 @@ class AsyncWebsocketConsumer(AsyncConsumer):
     for the WebSocket handling model that other applications can build on.
     """
 
-    groups = None
+    groups: list[str]
 
     def __init__(self, *args, **kwargs):
-        if self.groups is None:
+        if not getattr(self, "groups", None):
             self.groups = []
 
-    async def websocket_connect(self, message):
+    async def websocket_connect(self, message: WebSocketConnectEvent) -> None:
         """
         Called when a WebSocket connection is opened.
         """
@@ -39,19 +48,23 @@ class AsyncWebsocketConsumer(AsyncConsumer):
         except DenyConnection:
             await self.close()
 
-    async def connect(self):
+    async def connect(self) -> None:
         await self.accept()
 
-    async def accept(self, subprotocol=None, headers=None):
+    async def accept(
+        self, subprotocol: str | None = None, headers: ChannelHeaders | None = None
+    ):
         """
         Accepts an incoming socket
         """
-        message = {"type": "websocket.accept", "subprotocol": subprotocol}
-        if headers:
-            message["headers"] = list(headers)
+        message: WebSocketAcceptEvent = {
+            "type": "websocket.accept",
+            "subprotocol": subprotocol,
+            "headers": list(headers) if headers else [],
+        }
         await super().send(message)
 
-    async def websocket_receive(self, message):
+    async def websocket_receive(self, message: WebSocketReceiveEvent):
         """
         Called when a WebSocket frame is received. Decodes it and passes it
         to receive().
@@ -61,13 +74,20 @@ class AsyncWebsocketConsumer(AsyncConsumer):
         else:
             await self.receive(bytes_data=message["bytes"])
 
-    async def receive(self, text_data=None, bytes_data=None):
+    async def receive(
+        self, text_data: str | None = None, bytes_data: bytes | None = None
+    ) -> None:
         """
         Called with a decoded WebSocket frame.
         """
         pass
 
-    async def send(self, text_data=None, bytes_data=None, close=False):
+    async def send(
+        self,
+        text_data: str | None = None,
+        bytes_data: bytes | None = None,
+        close: bool = False,
+    ) -> None:
         """
         Sends a reply back down the WebSocket
         """
@@ -80,18 +100,21 @@ class AsyncWebsocketConsumer(AsyncConsumer):
         if close:
             await self.close(close)
 
-    async def close(self, code=None, reason=None):
+    async def close(
+        self, code: int | bool | None = None, reason: str | None = None
+    ) -> None:
         """
         Closes the WebSocket from the server end
         """
-        message = {"type": "websocket.close"}
-        if code is not None and code is not True:
-            message["code"] = code
-        if reason:
-            message["reason"] = reason
+        message: WebSocketCloseEvent = {
+            "type": "websocket.close",
+            "code": code if isinstance(code, int) else 1000,
+            "reason": reason,
+        }
+
         await super().send(message)
 
-    async def websocket_disconnect(self, message):
+    async def websocket_disconnect(self, message: WebSocketDisconnectEvent) -> None:
         """
         Called when a WebSocket connection is closed. Base level so you don't
         need to call super() all the time.
@@ -106,7 +129,7 @@ class AsyncWebsocketConsumer(AsyncConsumer):
         await self.disconnect(message["code"])
         raise StopConsumer()
 
-    async def disconnect(self, code):
+    async def disconnect(self, code: int) -> None:
         """
         Called when a WebSocket connection is closed.
         """
@@ -120,28 +143,33 @@ class AsyncJsonWebsocketConsumer(AsyncWebsocketConsumer):
     error on binary data.
     """
 
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+    async def receive(
+        self,
+        text_data: str | None = None,
+        bytes_data: bytes | None = None,
+        **kwargs: Any,
+    ) -> None:
         if text_data:
             await self.receive_json(await self.decode_json(text_data), **kwargs)
         else:
             raise ValueError("No text section for incoming WebSocket frame!")
 
-    async def receive_json(self, content, **kwargs):
+    async def receive_json(self, content: Any, **kwargs: Any) -> None:
         """
         Called with decoded JSON content.
         """
         pass
 
-    async def send_json(self, content, close=False):
+    async def send_json(self, content: Any, close: bool = False) -> None:
         """
         Encode the given content as JSON and send it to the client.
         """
         await super().send(text_data=await self.encode_json(content), close=close)
 
     @classmethod
-    async def decode_json(cls, text_data):
+    async def decode_json(cls, text_data: str) -> Any:
         return json.loads(text_data)
 
     @classmethod
-    async def encode_json(cls, content):
+    async def encode_json(cls, content: Any) -> str:
         return json.dumps(content)

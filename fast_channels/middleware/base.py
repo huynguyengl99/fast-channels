@@ -1,3 +1,11 @@
+from ..types import (
+    ASGIReceiveCallable,
+    ASGISendCallable,
+    ChannelApplication,
+    ChannelScope,
+)
+
+
 class BaseMiddleware:
     """
     Base class for implementing ASGI middleware.
@@ -7,13 +15,15 @@ class BaseMiddleware:
     scope.
     """
 
-    def __init__(self, inner):
+    def __init__(self, inner: ChannelApplication):
         """
         Middleware constructor - just takes inner application.
         """
-        self.inner = inner
+        self.inner: ChannelApplication = inner
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(
+        self, scope: ChannelScope, receive: ASGIReceiveCallable, send: ASGISendCallable
+    ) -> ChannelApplication:
         """
         ASGI application; can insert things into the scope and run asynchronous
         code.

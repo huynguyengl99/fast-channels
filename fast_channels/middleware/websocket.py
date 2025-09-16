@@ -1,8 +1,20 @@
-from urllib.parse import urlparse
+from collections.abc import Iterable
+from re import Pattern
+from typing import Any, TypeAlias
+from urllib.parse import ParseResult, urlparse
 
 from fast_channels.utils import is_same_domain
 
 from ..consumer.websocket import AsyncWebsocketConsumer
+from ..types import (
+    ASGIReceiveCallable,
+    ASGISendCallable,
+    ChannelApplication,
+    ChannelScope,
+)
+
+Origin: TypeAlias = str | Pattern[str]
+AllowedOrigins: TypeAlias = Iterable[Origin]
 
 
 class OriginValidator:
@@ -11,11 +23,15 @@ class OriginValidator:
     is in an allowed list.
     """
 
-    def __init__(self, application, allowed_origins):
-        self.application = application
-        self.allowed_origins = allowed_origins
+    def __init__(
+        self, application: ChannelApplication, allowed_origins: AllowedOrigins
+    ):
+        self.application: ChannelApplication = application
+        self.allowed_origins: AllowedOrigins = allowed_origins
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(
+        self, scope: ChannelScope, receive: ASGIReceiveCallable, send: ASGISendCallable
+    ) -> Any:
         # Make sure the scope is of type websocket
         if scope["type"] != "websocket":
             raise ValueError(
@@ -39,7 +55,7 @@ class OriginValidator:
             denier = WebsocketDenier()
             return await denier(scope, receive, send)
 
-    def valid_origin(self, parsed_origin):
+    def valid_origin(self, parsed_origin: ParseResult | None) -> bool:
         """
         Checks parsed origin is None.
 
@@ -52,7 +68,7 @@ class OriginValidator:
             return False
         return self.validate_origin(parsed_origin)
 
-    def validate_origin(self, parsed_origin):
+    def validate_origin(self, parsed_origin: ParseResult | None) -> bool:
         """
         Validate the given origin for this site.
 
@@ -74,7 +90,9 @@ class OriginValidator:
             for pattern in self.allowed_origins
         )
 
-    def match_allowed_origin(self, parsed_origin, pattern):
+    def match_allowed_origin(
+        self, parsed_origin: ParseResult | None, pattern: str | Pattern[str]
+    ) -> bool:
         """
         Returns ``True`` if the origin is either an exact match or a match
         to the wildcard pattern. Compares scheme, domain, port of origin and pattern.
@@ -113,7 +131,7 @@ class OriginValidator:
             return True
         return False
 
-    def get_origin_port(self, origin):
+    def get_origin_port(self, origin: ParseResult | None) -> int | None:
         """
         Returns the origin.port or port for this schema by default.
         Otherwise, it returns None.
