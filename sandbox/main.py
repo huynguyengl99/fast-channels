@@ -26,12 +26,14 @@ html = """
             <input type="text" id="messageText" autocomplete="off"/>
             <button>Send</button>
         </form>
+        <button onclick="sendAnalyticsEvent()">Send Analytics Event</button>
         <ul id='messages'></ul>
         <script>
             // WebSocket connections for different layer types
             var wsChat = new WebSocket("ws://localhost:8080/ws/chat");
             var wsNotifications = new WebSocket("ws://localhost:8080/ws/notifications");
             var wsReliable = new WebSocket("ws://localhost:8080/ws/reliable");
+            var wsAnalytics = new WebSocket("ws://localhost:8080/ws/analytics");
 
             // Handle chat messages
             wsChat.onmessage = function(event) {
@@ -46,6 +48,11 @@ html = """
             // Handle reliable messages
             wsReliable.onmessage = function(event) {
                 addMessage("Reliable: " + event.data, "reliable");
+            };
+
+            // Handle analytics messages
+            wsAnalytics.onmessage = function(event) {
+                addMessage("Analytics: " + event.data, "analytics");
             };
 
             function addMessage(text, type) {
@@ -73,6 +80,25 @@ html = """
                 input.value = '';
                 event.preventDefault();
             }
+
+            function sendAnalyticsEvent() {
+                if (wsAnalytics.readyState === WebSocket.OPEN) {
+                    var event = {
+                        type: "page_view",
+                        timestamp: new Date().toISOString(),
+                        user_agent: navigator.userAgent,
+                        url: window.location.href
+                    };
+                    wsAnalytics.send(JSON.stringify(event));
+                }
+            }
+
+            // Send analytics event on page load
+            window.onload = function() {
+                setTimeout(function() {
+                    sendAnalyticsEvent();
+                }, 1000); // Wait 1 second for connection
+            };
         </script>
     </body>
 </html>
