@@ -21,11 +21,12 @@ class BaseMessageSerializer(abc.ABC):
         random_prefix_length: int = 0,
         expiry: int | None = None,
     ):
+        self.crypter: MultiFernet | None = None
+
         self.random_prefix_length = random_prefix_length
         self.expiry = expiry
         # Set up any encryption objects
         self._setup_encryption(symmetric_encryption_keys)
-        self.crypter: MultiFernet | None = None
 
     def _setup_encryption(
         self, symmetric_encryption_keys: SymmetricEncryptionKeys | None

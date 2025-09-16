@@ -27,6 +27,7 @@ lint = [
 ]
 test = [
   "coverage[toml]>=7.8.0,<8",
+  "pytest-asyncio>=1.2.0",
   "pytest-cov>=6.1.0,<7",
   "pytest-mock>=3.14.0,<4",
   "pytest-xdist>=3.6.1,<4",
@@ -58,13 +59,10 @@ description = "Fast Channels brings Django Channels–style consumers and channe
 license = {file = "LICENSE"}
 name = "fast-channels"
 readme = "README.md"
-requires-python = ">=3.10,<4.0"
+requires-python = ">=3.11,<4.0"
 version = "0.0.1"
 
 [project.optional-dependencies]
-cryptography = [
-  "cryptography"
-]
 redis = [
   "cryptography",
   "msgpack",

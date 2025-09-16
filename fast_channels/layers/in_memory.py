@@ -22,8 +22,8 @@ class InMemoryChannelLayer(BaseChannelLayer):
 
     def __init__(
         self,
-        expiry: int = 60,
-        group_expiry: int = 86400,
+        expiry: float = 60,
+        group_expiry: float = 86400,
         capacity: int = 100,
         channel_capacity: ChannelCapacityDict | None = None,
     ):
@@ -34,7 +34,7 @@ class InMemoryChannelLayer(BaseChannelLayer):
         )
         self.channels: dict[str, asyncio.Queue[InMemoryQueueData]] = {}
         self.groups: InMemoryGroups = {}
-        self.group_expiry: int = group_expiry
+        self.group_expiry: float = group_expiry
 
     # Channel layer API
     extensions = ["groups", "flush"]

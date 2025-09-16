@@ -90,17 +90,3 @@ def unregister_channel_layer(alias: str) -> None:
     Remove a channel layer from the registry.
     """
     channel_layers.unregister(alias)
-
-
-def list_channel_layers() -> list[str]:
-    """
-    Get all registered channel layer aliases.
-    """
-    return channel_layers.list_aliases()
-
-
-def clear_channel_layers() -> None:
-    """
-    Clear all registered channel layers.
-    """
-    channel_layers.clear()

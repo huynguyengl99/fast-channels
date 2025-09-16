@@ -13,3 +13,4 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 
 [lint.per-file-ignores]
 "fast_channels/layers/redis/*" = ["C901", "PLR0913", 'PLR0912', 'PLR0915']
+"tests/*" = ["PLR2004"]

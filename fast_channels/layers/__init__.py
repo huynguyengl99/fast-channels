@@ -1,10 +1,11 @@
 from .base import BaseChannelLayer
 from .in_memory import InMemoryChannelLayer
-from .redis import (
-    RedisChannelLayer,
-    RedisPubSubChannelLayer,
+from .registry import (
+    ChannelLayerRegistry,
+    get_channel_layer,
+    register_channel_layer,
+    unregister_channel_layer,
 )
-from .registry import ChannelLayerRegistry, get_channel_layer, register_channel_layer
 
 __all__ = [
     "get_channel_layer",
@@ -12,6 +13,5 @@ __all__ = [
     "ChannelLayerRegistry",
     "BaseChannelLayer",
     "InMemoryChannelLayer",
-    "RedisPubSubChannelLayer",
-    "RedisChannelLayer",
+    "unregister_channel_layer",
 ]

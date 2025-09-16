@@ -15,13 +15,13 @@ class BaseChannelLayer:
     """
 
     MAX_NAME_LENGTH: int = 100
-    expiry: int
+    expiry: float
     capacity: int
     channel_capacity: CompiledChannelCapacities
 
     def __init__(
         self,
-        expiry: int = 60,
+        expiry: float = 60,
         capacity: int = 100,
         channel_capacity: ChannelCapacityDict | None = None,
     ):

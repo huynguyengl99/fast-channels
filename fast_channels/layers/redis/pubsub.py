@@ -10,6 +10,7 @@ from typing import Any, Literal, TypeAlias, cast
 from redis import asyncio as aioredis
 from redis.asyncio.client import PubSub
 
+from fast_channels.layers import BaseChannelLayer
 from fast_channels.type_defs import ChannelMessage
 
 from .serializers import registry
@@ -41,7 +42,7 @@ async def _async_proxy(
 CachedRedisPubSubLayers: TypeAlias = dict[AbstractEventLoop, "RedisPubSubLoopLayer"]
 
 
-class RedisPubSubChannelLayer:
+class RedisPubSubChannelLayer(BaseChannelLayer):
     def __init__(
         self,
         *args: Any,
@@ -58,7 +59,8 @@ class RedisPubSubChannelLayer:
             symmetric_encryption_keys=symmetric_encryption_keys,
         )
 
-    def __getattr__(self, name: str) -> Any:
+    def __getattribute__(self, name: str) -> Any:
+        # Check if this is one of the methods we want to proxy to the loop layer
         if name in (
             "new_channel",
             "send",
@@ -69,7 +71,12 @@ class RedisPubSubChannelLayer:
             "flush",
         ):
             return functools.partial(_async_proxy, self, name)
-        else:
+
+        # For all other attributes, use normal attribute lookup
+        try:
+            return super().__getattribute__(name)
+        except AttributeError:
+            # If attribute not found, try to get it from the loop layer
             return getattr(self._get_layer(), name)
 
     def serialize(self, message: ChannelMessage) -> bytes:
