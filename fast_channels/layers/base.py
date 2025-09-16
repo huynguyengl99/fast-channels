@@ -1,10 +1,10 @@
 import fnmatch
 import re
 
-from fast_channels.types import (
+from fast_channels.type_defs import (
     ChannelCapacityDict,
     ChannelMessage,
-    CompiledChannelCapacity,
+    CompiledChannelCapacities,
 )
 
 
@@ -17,7 +17,7 @@ class BaseChannelLayer:
     MAX_NAME_LENGTH: int = 100
     expiry: int
     capacity: int
-    channel_capacity: ChannelCapacityDict | CompiledChannelCapacity
+    channel_capacity: CompiledChannelCapacities
 
     def __init__(
         self,
@@ -31,19 +31,22 @@ class BaseChannelLayer:
 
     def compile_capacities(
         self, channel_capacity: ChannelCapacityDict
-    ) -> CompiledChannelCapacity:
+    ) -> CompiledChannelCapacities:
         """
         Takes an input channel_capacity dict and returns the compiled list
         of regexes that get_capacity will look for as self.channel_capacity
         """
-        result = []
+        result: CompiledChannelCapacities = []
         for pattern, value in channel_capacity.items():
             # If they passed in a precompiled regex, leave it, else interpret
             # it as a glob.
-            if hasattr(pattern, "match"):
+            if isinstance(pattern, re.Pattern):
+                # It's already compiled, use it directly
                 result.append((pattern, value))
             else:
-                result.append((re.compile(fnmatch.translate(pattern)), value))
+                # It's a string, compile it as a glob pattern
+                compiled_pattern = re.compile(fnmatch.translate(pattern))
+                result.append((compiled_pattern, value))
         return result
 
     def get_capacity(self, channel: str) -> int:
@@ -72,9 +75,7 @@ class BaseChannelLayer:
         + "containing only ASCII alphanumerics, hyphens, underscores, or periods."
     )
 
-    def require_valid_channel_name(
-        self, name: str | object, receive: bool = False
-    ) -> bool:
+    def require_valid_channel_name(self, name: str, receive: bool = False) -> bool:
         if not self.match_type_and_length(name):
             raise TypeError(self.invalid_name_error.format("Channel"))
         if not bool(self.channel_name_regex.match(name)):
@@ -83,7 +84,7 @@ class BaseChannelLayer:
             raise TypeError("Specific channel names in receive() must end at the !")
         return True
 
-    def require_valid_group_name(self, name: str | object) -> bool:
+    def require_valid_group_name(self, name: str) -> bool:
         if not self.match_type_and_length(name):
             raise TypeError(self.invalid_name_error.format("Group"))
         if not bool(self.group_name_regex.match(name)):
@@ -121,5 +122,5 @@ class BaseChannelLayer:
     async def group_discard(self, group: str, channel: str) -> None:
         raise NotImplementedError("group_discard() not implemented (groups extension)")
 
-    async def group_send(self, group: str, message: str) -> None:
+    async def group_send(self, group: str, message: ChannelMessage) -> None:
         raise NotImplementedError("group_send() not implemented (groups extension)")

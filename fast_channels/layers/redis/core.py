@@ -5,28 +5,27 @@ import itertools
 import logging
 import time
 import uuid
-from asyncio import AbstractEventLoop
+from asyncio import AbstractEventLoop, Future, Task
 from collections.abc import Iterable
-from typing import Any, Literal, TypeAlias, TypeVar
+from typing import Any, Literal, TypeAlias, TypeVar, cast
 
 from redis import asyncio as aioredis
 
 from fast_channels.exceptions import ChannelFull
 from fast_channels.layers.base import BaseChannelLayer
-from fast_channels.types import (
+from fast_channels.type_defs import (
     ChannelCapacityDict,
     ChannelMessage,
-    CompiledChannelCapacity,
 )
 
 from .serializers import registry
-from .types import ChannelRawRedisHost, SymmetricEncryptionKeys
+from .type_defs import ChannelRawRedisHost, SymmetricEncryptionKeys
 from .utils import (
-    _close_redis,
-    _consistent_hash,
-    _wrap_close,
+    close_redis,
+    consistent_hash,
     create_pool,
     decode_hosts,
+    wrap_close,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,7 +39,7 @@ class ChannelLock:
     to mitigate multi-event loop problems.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.locks: dict[str, asyncio.Lock] = collections.defaultdict(asyncio.Lock)
         self.wait_counts: dict[str, int] = collections.defaultdict(int)
 
@@ -72,7 +71,7 @@ Item = TypeVar("Item")
 
 
 class BoundedQueue(asyncio.Queue[Item]):
-    def put_nowait(self, item: Item):
+    def put_nowait(self, item: Item) -> None:
         if self.full():
             # see: https://github.com/django/channels_redis/issues/212
             # if we actually get into this code block, it likely means that
@@ -88,7 +87,7 @@ class RedisLoopLayer:
     def __init__(self, channel_layer: "RedisChannelLayer"):
         self._lock = asyncio.Lock()
         self.channel_layer = channel_layer
-        self._connections = {}
+        self._connections: dict[int, aioredis.Redis] = {}
 
     def get_connection(self, index: int) -> aioredis.Redis:
         if index not in self._connections:
@@ -101,7 +100,7 @@ class RedisLoopLayer:
         async with self._lock:
             for index in list(self._connections):
                 connection = self._connections.pop(index)
-                await _close_redis(connection)
+                await close_redis(connection)
 
 
 CachedRedisLayers: TypeAlias = dict[AbstractEventLoop, RedisLoopLayer]
@@ -125,8 +124,8 @@ class RedisChannelLayer(BaseChannelLayer):
         expiry: int = 60,
         group_expiry: int = 86400,
         capacity: int = 100,
-        channel_capacity: ChannelCapacityDict | CompiledChannelCapacity | None = None,
-        symmetric_encryption_keys: SymmetricEncryptionKeys = None,
+        channel_capacity: ChannelCapacityDict | None = None,
+        symmetric_encryption_keys: SymmetricEncryptionKeys | None = None,
         random_prefix_length: int = 12,
         serializer_format: Literal["msgpack", "json"] | str = "msgpack",
     ):
@@ -162,11 +161,13 @@ class RedisChannelLayer(BaseChannelLayer):
         # Event loop they are trying to receive on
         self.receive_event_loop: AbstractEventLoop | None = None
         # Buffered messages by process-local channel name
-        self.receive_buffer: dict[str, BoundedQueue] = collections.defaultdict(
-            functools.partial(BoundedQueue, self.capacity)
+        self.receive_buffer: dict[str, BoundedQueue[ChannelMessage]] = (
+            collections.defaultdict(
+                functools.partial(BoundedQueue[ChannelMessage], self.capacity)
+            )
         )
         # Detached channel cleanup tasks
-        self.receive_cleaners = []
+        self.receive_cleaners: list[Future[Any]] = []
         # Per-channel cleanup locks to prevent a receive starting and moving
         # a message back into the main queue before its cleanup has completed
         self.receive_clean_locks = ChannelLock()
@@ -243,7 +244,7 @@ class RedisChannelLayer(BaseChannelLayer):
         connection = self.connection(index)
         # Cancellation here doesn't matter, we're not doing anything destructive
         # and the script executes atomically...
-        await connection.eval(cleanup_script, 0, channel, backup_queue)
+        await connection.eval(cleanup_script, 0, channel, backup_queue)  # type: ignore[misc]
         # ...and it doesn't matter here either, the message will be safe in the backup.
         result = await connection.bzpopmin(channel, timeout=timeout)
 
@@ -292,12 +293,16 @@ class RedisChannelLayer(BaseChannelLayer):
                     )
 
                 # Wait for our message to appear
-                message = None
+                message: ChannelMessage | None = None
                 while self.receive_buffer[channel].empty():
-                    tasks = [
-                        self.receive_lock.acquire(),
-                        self.receive_buffer[channel].get(),
-                    ]
+                    assert self.receive_lock
+                    tasks = cast(
+                        list[Future[Any]],
+                        [
+                            self.receive_lock.acquire(),
+                            self.receive_buffer[channel].get(),
+                        ],
+                    )
                     tasks = [asyncio.ensure_future(task) for task in tasks]
                     try:
                         done, pending = await asyncio.wait(
@@ -332,7 +337,7 @@ class RedisChannelLayer(BaseChannelLayer):
                             token = result
                         else:
                             assert isinstance(result, dict)
-                            message = result
+                            message = result  # pyright: ignore
 
                     if message or exception:
                         if token:
@@ -373,12 +378,13 @@ class RedisChannelLayer(BaseChannelLayer):
 
                 if self.receive_buffer[channel].empty():
                     del self.receive_buffer[channel]
-                return message
+                return message  # pyright: ignore[reportUnknownVariableType]
 
             finally:
                 self.receive_count -= 1
                 # If we were the last out, drop the receive lock
                 if self.receive_count == 0:
+                    assert self.receive_lock
                     assert not self.receive_lock.locked()
                     self.receive_lock = None
                     self.receive_event_loop = None
@@ -424,7 +430,7 @@ class RedisChannelLayer(BaseChannelLayer):
             )
             self.receive_cleaners.append(cleaner)
 
-            def _cleanup_done(cleaner):
+            def _cleanup_done(cleaner: Task[None]) -> None:
                 self.receive_cleaners.remove(cleaner)
                 self.receive_clean_locks.release(channel_key)
 
@@ -440,7 +446,7 @@ class RedisChannelLayer(BaseChannelLayer):
         # If there is a full channel name stored in the message, unpack it.
         if "__asgi_channel__" in message:
             channel = message["__asgi_channel__"]
-            del message["__asgi_channel__"]
+            del message["__asgi_channel__"]  # type: ignore
         return channel, message
 
     async def new_channel(self, prefix: str = "specific") -> str:
@@ -470,7 +476,7 @@ class RedisChannelLayer(BaseChannelLayer):
         # Go through each connection and remove all with prefix
         for i in range(self.ring_size):
             connection = self.connection(i)
-            await connection.eval(delete_prefix, 0, self.prefix + "*")
+            await connection.eval(delete_prefix, 0, self.prefix + "*")  # type: ignore[misc]
         # Now clear the pools as well
         await self.close_pools()
 
@@ -533,7 +539,12 @@ class RedisChannelLayer(BaseChannelLayer):
             key, min=0, max=int(time.time()) - self.group_expiry
         )
 
-        channel_names = [x.decode("utf8") for x in await connection.zrange(key, 0, -1)]
+        channel_names = [
+            x.decode("utf8")
+            for x in await connection.zrange(  # pyright: ignore[reportUnknownMemberType]
+                key, 0, -1
+            )
+        ]
 
         (
             connection_to_channel_keys,
@@ -544,7 +555,7 @@ class RedisChannelLayer(BaseChannelLayer):
         for connection_index, channel_redis_keys in connection_to_channel_keys.items():
             # Discard old messages based on expiry
             pipe = connection.pipeline()
-            for key in channel_redis_keys:
+            for key in channel_redis_keys:  # type: ignore[assignment]
                 pipe.zremrangebyscore(
                     key, min=0, max=int(time.time()) - int(self.expiry)
                 )
@@ -586,8 +597,11 @@ class RedisChannelLayer(BaseChannelLayer):
 
             # channel_keys does not contain a single redis key more than once
             connection = self.connection(connection_index)
-            channels_over_capacity = await connection.eval(
-                group_send_lua, len(channel_redis_keys), *channel_redis_keys, *args
+            channels_over_capacity = cast(
+                int,
+                await connection.eval(  # type: ignore[misc]
+                    group_send_lua, len(channel_redis_keys), *channel_redis_keys, *args
+                ),
             )
             if channels_over_capacity > 0:
                 logger.info(
@@ -599,7 +613,7 @@ class RedisChannelLayer(BaseChannelLayer):
 
     def _map_channel_keys_to_connection(
         self, channel_names: Iterable[str], message: ChannelMessage
-    ) -> tuple[dict[str, list[str]], dict[str, Any], dict[str, Any]]:
+    ) -> tuple[dict[int, list[str]], dict[str, Any], dict[str, Any]]:
         """
         For a list of channel names, GET
 
@@ -612,11 +626,11 @@ class RedisChannelLayer(BaseChannelLayer):
         """
 
         # Connection dict keyed by index to list of redis keys mapped on that index
-        connection_to_channel_keys = collections.defaultdict(list)
+        connection_to_channel_keys: dict[int, list[str]] = collections.defaultdict(list)
         # Message dict maps redis key to the message that needs to be send on that key
-        channel_key_to_message = dict()
+        channel_key_to_message: dict[str, ChannelMessage] = dict()
         # Channel key mapped to its capacity
-        channel_key_to_capacity = dict()
+        channel_key_to_capacity: dict[str, int] = dict()
 
         # For each channel
         for channel in channel_names:
@@ -639,13 +653,14 @@ class RedisChannelLayer(BaseChannelLayer):
                 channel_key_to_message[channel_key]["__asgi_channel__"].append(channel)
 
         # Now that we know what message needs to be send on a redis key we serialize it
+        channel_key_to_bytes_message: dict[str, bytes] = dict()
         for key, value in channel_key_to_message.items():
             # Serialize the message stored for each redis key
-            channel_key_to_message[key] = self.serialize(value)
+            channel_key_to_bytes_message[key] = self.serialize(value)
 
         return (
             connection_to_channel_keys,
-            channel_key_to_message,
+            channel_key_to_bytes_message,
             channel_key_to_capacity,
         )
 
@@ -667,12 +682,12 @@ class RedisChannelLayer(BaseChannelLayer):
         """
         Deserializes from a byte string.
         """
-        return self._serializer.deserialize(message)
+        return cast(ChannelMessage, self._serializer.deserialize(message))
 
     ### Internal functions ###
 
     def consistent_hash(self, value: str | bytes) -> int:
-        return _consistent_hash(value, self.ring_size)
+        return consistent_hash(value, self.ring_size)
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}(hosts={self.hosts})"
@@ -694,7 +709,7 @@ class RedisChannelLayer(BaseChannelLayer):
         try:
             layer = self._layers[loop]
         except KeyError:
-            _wrap_close(self, loop)
+            wrap_close(self, loop)
             layer = self._layers[loop] = RedisLoopLayer(self)
 
         return layer.get_connection(index)

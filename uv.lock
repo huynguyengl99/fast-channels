@@ -533,6 +533,7 @@ cryptography = [
     { name = "cryptography" },
 ]
 redis = [
+    { name = "cryptography" },
     { name = "msgpack" },
     { name = "redis" },
 ]
@@ -575,10 +576,11 @@ test = [
 requires-dist = [
     { name = "asgiref", marker = "extra == 'with-test'", specifier = ">=3,<4" },
     { name = "cryptography", marker = "extra == 'cryptography'" },
+    { name = "cryptography", marker = "extra == 'redis'" },
     { name = "msgpack", marker = "extra == 'redis'" },
     { name = "redis", marker = "extra == 'redis'" },
 ]
-provides-extras = ["redis", "cryptography", "with-test"]
+provides-extras = ["cryptography", "redis", "with-test"]
 
 [package.metadata.requires-dev]
 dev = [

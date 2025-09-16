@@ -66,6 +66,7 @@ cryptography = [
   "cryptography"
 ]
 redis = [
+  "cryptography",
   "msgpack",
   "redis"
 ]

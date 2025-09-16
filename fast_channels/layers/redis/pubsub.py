@@ -1,22 +1,29 @@
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false
+
 import asyncio
 import functools
 import logging
 import uuid
 from asyncio import AbstractEventLoop, Future
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal, TypeAlias, cast
 
 from redis import asyncio as aioredis
 from redis.asyncio.client import PubSub
 
-from ...types import ChannelMessage
+from fast_channels.type_defs import ChannelMessage
+
 from .serializers import registry
-from .types import ChannelDecodedRedisHost, ChannelRawRedisHost, SymmetricEncryptionKeys
+from .type_defs import (
+    ChannelDecodedRedisHost,
+    ChannelRawRedisHost,
+    SymmetricEncryptionKeys,
+)
 from .utils import (
-    _close_redis,
-    _consistent_hash,
-    _wrap_close,
+    close_redis,
+    consistent_hash,
     create_pool,
     decode_hosts,
+    wrap_close,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,10 +31,10 @@ logger = logging.getLogger(__name__)
 
 async def _async_proxy(
     obj: "RedisPubSubChannelLayer", name: str, *args: Any, **kwargs: Any
-):
+) -> Any:
     # Must be defined as a function and not a method due to
     # https://bugs.python.org/issue38364
-    layer = obj._get_layer()
+    layer = obj._get_layer()  # pyright: ignore[reportPrivateUsage]
     return await getattr(layer, name)(*args, **kwargs)
 
 
@@ -40,7 +47,7 @@ class RedisPubSubChannelLayer:
         *args: Any,
         symmetric_encryption_keys: SymmetricEncryptionKeys | None = None,
         serializer_format: Literal["msgpack", "json"] | str = "msgpack",
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         self._args = args
         self._kwargs = kwargs
@@ -51,7 +58,7 @@ class RedisPubSubChannelLayer:
             symmetric_encryption_keys=symmetric_encryption_keys,
         )
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         if name in (
             "new_channel",
             "send",
@@ -75,7 +82,7 @@ class RedisPubSubChannelLayer:
         """
         Deserializes from a byte string.
         """
-        return self._serializer.deserialize(message)
+        return cast(ChannelMessage, self._serializer.deserialize(message))
 
     def _get_layer(self) -> "RedisPubSubLoopLayer":
         loop = asyncio.get_running_loop()
@@ -86,10 +93,10 @@ class RedisPubSubChannelLayer:
             layer = RedisPubSubLoopLayer(
                 *self._args,
                 **self._kwargs,
-                channel_layer=self,
+                channel_layer=self,  # type: ignore[misc]
             )
             self._layers[loop] = layer
-            _wrap_close(self, loop)
+            wrap_close(self, loop)
 
         return layer
 
@@ -106,13 +113,14 @@ class RedisPubSubLoopLayer:
         on_disconnect: Any = None,
         on_reconnect: Any = None,
         channel_layer: RedisPubSubChannelLayer | None = None,
-        **kwargs,
+        **kwargs: Any,
     ):
         self.prefix = prefix
 
         self.on_disconnect = on_disconnect
         self.on_reconnect = on_reconnect
-        self.channel_layer = channel_layer
+        assert channel_layer is not None
+        self.channel_layer: RedisPubSubChannelLayer = channel_layer
 
         # Each consumer gets its own *specific* channel, created with the `new_channel()` method.
         # This dict maps `channel_name` to a queue of messages for that channel.
@@ -131,7 +139,7 @@ class RedisPubSubLoopLayer:
         """
         Return the shard that is used exclusively for this channel or group.
         """
-        return self._shards[_consistent_hash(channel_or_group_name, len(self._shards))]
+        return self._shards[consistent_hash(channel_or_group_name, len(self._shards))]
 
     def _get_group_channel_name(self, group: str) -> str:
         """
@@ -274,7 +282,7 @@ class RedisSingleShardConnection:
     ):
         self.host = host
         self.channel_layer = channel_layer
-        self._subscribed_to = set()
+        self._subscribed_to: set[str] = set()
         self._lock = asyncio.Lock()
         self._redis: aioredis.Redis | None = None
         self._pubsub: PubSub | None = None
@@ -283,6 +291,7 @@ class RedisSingleShardConnection:
     async def publish(self, channel: str, message: bytes) -> None:
         async with self._lock:
             self._ensure_redis()
+            assert self._redis
             await self._redis.publish(channel, message)
 
     async def subscribe(self, channel: str) -> None:
@@ -290,6 +299,7 @@ class RedisSingleShardConnection:
             if channel not in self._subscribed_to:
                 self._ensure_redis()
                 self._ensure_receiver()
+                assert self._pubsub
                 await self._pubsub.subscribe(channel)
                 self._subscribed_to.add(channel)
 
@@ -298,6 +308,7 @@ class RedisSingleShardConnection:
             if channel in self._subscribed_to:
                 self._ensure_redis()
                 self._ensure_receiver()
+                assert self._pubsub
                 await self._pubsub.unsubscribe(channel)
                 self._subscribed_to.remove(channel)
 
@@ -314,7 +325,7 @@ class RedisSingleShardConnection:
                 # The pool was created just for this client, so make sure it is closed,
                 # otherwise it will schedule the connection to be closed inside the
                 # __del__ method, which doesn't have a loop running anymore.
-                await _close_redis(self._redis)
+                await close_redis(self._redis)
                 self._redis = None
                 self._pubsub = None
             self._subscribed_to = set()
@@ -323,8 +334,11 @@ class RedisSingleShardConnection:
         while True:
             try:
                 if self._pubsub and self._pubsub.subscribed:
-                    message = await self._pubsub.get_message(
-                        ignore_subscribe_messages=True, timeout=0.1
+                    message = cast(
+                        dict[str, Any] | None,
+                        await self._pubsub.get_message(
+                            ignore_subscribe_messages=True, timeout=0.1
+                        ),
                     )
                     self._receive_message(message)
                 else:

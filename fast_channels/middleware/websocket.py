@@ -1,19 +1,17 @@
 from collections.abc import Iterable
-from re import Pattern
-from typing import Any, TypeAlias
+from typing import Any, TypeAlias, cast
 from urllib.parse import ParseResult, urlparse
 
-from fast_channels.utils import is_same_domain
-
-from ..consumer.websocket import AsyncWebsocketConsumer
-from ..types import (
+from fast_channels.consumer.websocket import AsyncWebsocketConsumer
+from fast_channels.type_defs import (
     ASGIReceiveCallable,
     ASGISendCallable,
     ChannelApplication,
     ChannelScope,
 )
+from fast_channels.utils import is_same_domain
 
-Origin: TypeAlias = str | Pattern[str]
+Origin: TypeAlias = str
 AllowedOrigins: TypeAlias = Iterable[Origin]
 
 
@@ -43,7 +41,9 @@ class OriginValidator:
             if header_name == b"origin":
                 try:
                     # Set ResultParse
-                    parsed_origin = urlparse(header_value.decode("latin1"))
+                    parsed_origin = cast(
+                        ParseResult | None, urlparse(header_value.decode("latin1"))
+                    )
                 except UnicodeDecodeError:
                     pass
         # Check to see if the origin header is valid
@@ -91,7 +91,7 @@ class OriginValidator:
         )
 
     def match_allowed_origin(
-        self, parsed_origin: ParseResult | None, pattern: str | Pattern[str]
+        self, parsed_origin: ParseResult | None, pattern: str
     ) -> bool:
         """
         Returns ``True`` if the origin is either an exact match or a match
@@ -126,12 +126,12 @@ class OriginValidator:
         if (
             parsed_pattern.scheme == parsed_origin.scheme
             and origin_port == pattern_port
-            and is_same_domain(parsed_origin.hostname, parsed_pattern.hostname)
+            and is_same_domain(parsed_origin.hostname, parsed_pattern.hostname)  # type: ignore
         ):
             return True
         return False
 
-    def get_origin_port(self, origin: ParseResult | None) -> int | None:
+    def get_origin_port(self, origin: ParseResult) -> int | None:
         """
         Returns the origin.port or port for this schema by default.
         Otherwise, it returns None.
@@ -155,5 +155,5 @@ class WebsocketDenier(AsyncWebsocketConsumer):
     Simple application which denies all requests to it.
     """
 
-    async def connect(self):
+    async def connect(self) -> None:
         await self.close()

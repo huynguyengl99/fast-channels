@@ -1,11 +1,7 @@
-from .application import ApplicationCommunicator  # noqa
-from .http import HttpCommunicator  # noqa
-from .live import ChannelsLiveServerTestCase  # noqa
-from .websocket import WebsocketCommunicator  # noqa
+from .application import ApplicationCommunicator
+from .websocket import WebsocketCommunicator
 
 __all__ = [
     "ApplicationCommunicator",
-    "HttpCommunicator",
-    "ChannelsLiveServerTestCase",
     "WebsocketCommunicator",
 ]

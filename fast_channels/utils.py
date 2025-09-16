@@ -2,13 +2,13 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from .types import ASGIReceiveCallable
+from .type_defs import ASGIReceiveCallable
 
 
 async def await_many_dispatch(
-    consumer_callables: list[Callable[[], Awaitable[ASGIReceiveCallable]]],
+    consumer_callables: list[ASGIReceiveCallable],
     dispatch: Callable[[Any], Awaitable[None]],
-):
+) -> None:
     """
     Given a set of consumer callables, awaits on them all and passes results
     from them to the dispatch awaitable as they come in.

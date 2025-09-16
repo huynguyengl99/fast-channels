@@ -5,8 +5,11 @@ This file centralizes all channel layer configuration for the application.
 
 import os
 
-from fast_channels.layers import InMemoryChannelLayer
-from fast_channels.layers.redis import create_redis_channel_layer
+from fast_channels.layers import (
+    InMemoryChannelLayer,
+    RedisChannelLayer,
+    RedisPubSubChannelLayer,
+)
 from fast_channels.layers.registry import register_channel_layer
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6399")
@@ -28,20 +31,14 @@ def setup_layers():
         },
         # Redis Pub/Sub layer for real-time messaging
         "chat": {
-            "layer": create_redis_channel_layer(
-                redis_url=redis_url,
-                prefix="chat",
-                use_pubsub=True,  # Fast pub/sub for chat
-                expiry=300,  # 5 minutes
-            ),
+            "layer": RedisPubSubChannelLayer(hosts=[redis_url], prefix="chat"),
             "description": "Redis pub/sub layer for chat applications",
         },
         # Redis Queue layer for reliable messaging
         "queue": {
-            "layer": create_redis_channel_layer(
-                redis_url=redis_url,
+            "layer": RedisChannelLayer(
+                hosts=[redis_url],
                 prefix="queue",
-                use_pubsub=False,  # Reliable queue-based
                 expiry=900,  # 15 minutes
                 capacity=1000,
             ),
@@ -49,20 +46,14 @@ def setup_layers():
         },
         # Notifications layer with different prefix
         "notifications": {
-            "layer": create_redis_channel_layer(
-                redis_url=redis_url,
-                prefix="notify",
-                use_pubsub=True,
-                expiry=60,  # 1 minute (notifications are ephemeral)
-            ),
+            "layer": RedisPubSubChannelLayer(hosts=[redis_url], prefix="notify"),
             "description": "Redis pub/sub layer for notifications",
         },
         # Analytics layer for metrics/events
         "analytics": {
-            "layer": create_redis_channel_layer(
-                redis_url=redis_url,
+            "layer": RedisChannelLayer(
+                hosts=[redis_url],
                 prefix="analytics",
-                use_pubsub=False,  # Queue for reliability
                 expiry=3600,  # 1 hour
                 capacity=5000,
             ),

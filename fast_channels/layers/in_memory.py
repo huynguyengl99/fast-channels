@@ -2,11 +2,13 @@ import asyncio
 import random
 import string
 import time
+from asyncio import Task
 from copy import deepcopy
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
-from ..exceptions import ChannelFull
-from ..types import ChannelCapacityDict, ChannelMessage
+from fast_channels.exceptions import ChannelFull
+from fast_channels.type_defs import ChannelCapacityDict, ChannelMessage
+
 from .base import BaseChannelLayer
 
 InMemoryQueueData: TypeAlias = tuple[float, ChannelMessage]
@@ -67,7 +69,8 @@ class InMemoryChannelLayer(BaseChannelLayer):
         self._clean_expired()
 
         queue = self.channels.setdefault(
-            channel, asyncio.Queue(maxsize=self.get_capacity(channel))
+            channel,
+            asyncio.Queue[InMemoryQueueData](maxsize=self.get_capacity(channel)),
         )
 
         # Do a plain direct receive
@@ -86,7 +89,7 @@ class InMemoryChannelLayer(BaseChannelLayer):
         """
         return "{}.inmemory!{}".format(
             prefix,
-            "".join(random.choice(string.ascii_letters) for i in range(12)),
+            "".join(random.choice(string.ascii_letters) for _ in range(12)),
         )
 
     # Expire cleanup
@@ -98,7 +101,7 @@ class InMemoryChannelLayer(BaseChannelLayer):
         # Channel cleanup
         for channel, queue in list(self.channels.items()):
             # See if it's expired
-            while not queue.empty() and queue._queue[0][0] < time.time():
+            while not queue.empty() and queue._queue[0][0] < time.time():  # type: ignore[attr-defined]
                 queue.get_nowait()
                 # Any removal prompts group discard
                 self._remove_from_groups(channel)
@@ -165,7 +168,7 @@ class InMemoryChannelLayer(BaseChannelLayer):
         self._clean_expired()
 
         # Send to each channel
-        ops = []
+        ops: list[Task[Any]] = []
         if group in self.groups:
             for channel in self.groups[group].keys():
                 ops.append(asyncio.create_task(self.send(channel, message)))

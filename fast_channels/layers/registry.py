@@ -11,10 +11,10 @@ class ChannelLayerRegistry:
     Allows direct registration of channel layer instances.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._layers: dict[str, BaseChannelLayer] = {}
 
-    def register(self, alias: str, layer: BaseChannelLayer):
+    def register(self, alias: str, layer: BaseChannelLayer) -> None:
         """
         Register a channel layer instance with an alias.
 
@@ -24,7 +24,7 @@ class ChannelLayerRegistry:
         """
         self._layers[alias] = layer
 
-    def unregister(self, alias: str):
+    def unregister(self, alias: str) -> None:
         """
         Remove a channel layer from the registry.
         """
@@ -43,7 +43,7 @@ class ChannelLayerRegistry:
         """
         return list(self._layers.keys())
 
-    def clear(self):
+    def clear(self) -> None:
         """
         Clear all registered layers.
         """
@@ -74,7 +74,7 @@ def get_channel_layer(alias: str) -> BaseChannelLayer | None:
     return channel_layers.get(alias)
 
 
-def register_channel_layer(alias: str, layer: BaseChannelLayer):
+def register_channel_layer(alias: str, layer: BaseChannelLayer) -> None:
     """
     Register a channel layer instance.
 
@@ -85,7 +85,7 @@ def register_channel_layer(alias: str, layer: BaseChannelLayer):
     channel_layers.register(alias, layer)
 
 
-def unregister_channel_layer(alias: str):
+def unregister_channel_layer(alias: str) -> None:
     """
     Remove a channel layer from the registry.
     """
@@ -99,7 +99,7 @@ def list_channel_layers() -> list[str]:
     return channel_layers.list_aliases()
 
 
-def clear_channel_layers():
+def clear_channel_layers() -> None:
     """
     Clear all registered channel layers.
     """

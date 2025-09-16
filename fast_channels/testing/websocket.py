@@ -3,7 +3,8 @@ from collections.abc import Iterable
 from typing import Any, TypeAlias
 from urllib.parse import unquote, urlparse
 
-from ..types import ChannelApplication, ChannelHeaders, ChannelScope
+from fast_channels.type_defs import ChannelApplication, ChannelHeaders, ChannelScope
+
 from .application import ApplicationCommunicator
 
 Connected: TypeAlias = bool
@@ -27,8 +28,6 @@ class WebsocketCommunicator(ApplicationCommunicator):
         subprotocols: Iterable[str] | None = None,
         spec_version: int | None = None,
     ) -> None:
-        if not isinstance(path, str):
-            raise TypeError(f"Expected str, got {type(path)}")
         parsed = urlparse(path)
         self.scope: ChannelScope = {
             "type": "websocket",
@@ -39,7 +38,7 @@ class WebsocketCommunicator(ApplicationCommunicator):
         }
         if spec_version:
             self.scope["spec_version"] = spec_version
-        super().__init__(application, self.scope)
+        super().__init__(application, self.scope)  # type: ignore
         self.response_headers = None
 
     async def connect(self, timeout: float = 1) -> WebsocketConnectResponse:

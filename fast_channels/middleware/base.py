@@ -1,4 +1,4 @@
-from ..types import (
+from fast_channels.type_defs import (
     ASGIReceiveCallable,
     ASGISendCallable,
     ChannelApplication,
@@ -31,4 +31,4 @@ class BaseMiddleware:
         # Copy scope to stop changes going upstream
         scope = dict(scope)
         # Run the inner application along with the scope
-        return await self.inner(scope, receive, send)
+        return await self.inner(scope, receive, send)  # type: ignore

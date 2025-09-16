@@ -1,18 +1,20 @@
+# pyright: reportUnknownVariableType=false, reportUnknownMemberType=false
+
 import binascii
 import types
 from asyncio import AbstractEventLoop
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from redis import asyncio as aioredis
 
-from .types import ChannelDecodedRedisHost, ChannelRawRedisHost
+from .type_defs import ChannelDecodedRedisHost, ChannelRawRedisHost
 
 if TYPE_CHECKING:
     from .core import RedisChannelLayer  # noqa
     from .pubsub import RedisPubSubChannelLayer  # noqa
 
 
-def _consistent_hash(value: str | bytes, ring_size: int) -> int:
+def consistent_hash(value: str | bytes, ring_size: int) -> int:
     """
     Maps the value to a node value between 0 and 4095
     using CRC, then down to one of the ring nodes.
@@ -28,24 +30,24 @@ def _consistent_hash(value: str | bytes, ring_size: int) -> int:
     return int(bigval / ring_divisor)
 
 
-def _wrap_close(
+def wrap_close(
     proxy: "RedisChannelLayer | RedisPubSubChannelLayer", loop: AbstractEventLoop
 ) -> None:
     original_impl = loop.close
 
-    def _wrapper(self, *args, **kwargs):
-        if loop in proxy._layers:
-            layer = proxy._layers[loop]
-            del proxy._layers[loop]
+    def _wrapper(self: AbstractEventLoop, *args: Any, **kwargs: Any) -> None:
+        if loop in proxy._layers:  # pyright: ignore[reportPrivateUsage]
+            layer = proxy._layers[loop]  # pyright: ignore[reportPrivateUsage]
+            del proxy._layers[loop]  # pyright: ignore[reportPrivateUsage]
             loop.run_until_complete(layer.flush())
 
-        self.close = original_impl
+        self.close = original_impl  # type: ignore[method-assign]
         return self.close(*args, **kwargs)
 
-    loop.close = types.MethodType(_wrapper, loop)
+    loop.close = types.MethodType(_wrapper, loop)  # type: ignore[method-assign]
 
 
-async def _close_redis(connection: aioredis.Redis) -> None:
+async def close_redis(connection: aioredis.Redis) -> None:
     """
     Handle compatibility with redis-py 4.x and 5.x close methods
     """
@@ -72,7 +74,7 @@ def decode_hosts(
         )
 
     # Decode each hosts entry into a kwargs dict
-    result = []
+    result: list[ChannelDecodedRedisHost] = []
     for entry in hosts:
         if isinstance(entry, dict):
             result.append(entry)
@@ -98,9 +100,9 @@ def create_pool(host: ChannelDecodedRedisHost) -> aioredis.ConnectionPool:
     if master_name is not None:
         sentinels = host.pop("sentinels")
         sentinel_kwargs = host.pop("sentinel_kwargs", None)
-        return aioredis.sentinel.SentinelConnectionPool(
+        return aioredis.SentinelConnectionPool(  # type: ignore[no-untyped-call]
             master_name,
-            aioredis.sentinel.Sentinel(sentinels, sentinel_kwargs=sentinel_kwargs),
+            aioredis.Sentinel(sentinels, sentinel_kwargs=sentinel_kwargs),  # type: ignore[no-untyped-call]
             **host,
         )
 

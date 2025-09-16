@@ -1,28 +1,22 @@
-from unittest import mock
+from typing import Any
 
 from asgiref.testing import ApplicationCommunicator as BaseApplicationCommunicator
 
 
-def no_op():
-    pass
-
-
 class ApplicationCommunicator(BaseApplicationCommunicator):
-    async def send_input(self, message):
-        with mock.patch("channels.db.close_old_connections", no_op):
-            return await super().send_input(message)
+    async def send_input(self, message: Any) -> None:
+        return await super().send_input(message)  # type: ignore
 
-    async def receive_output(self, timeout=1):
-        with mock.patch("channels.db.close_old_connections", no_op):
-            return await super().receive_output(timeout)
+    async def receive_output(self, timeout: float = 1) -> Any:
+        return await super().receive_output(timeout)  # type: ignore
 
     async def receive_nothing(
         self, timeout: float = 0.1, interval: float = 0.01
     ) -> bool:
-        return await super().receive_nothing(timeout, interval)
+        return await super().receive_nothing(timeout, interval)  # type: ignore
 
     async def wait(self, timeout: float = 1) -> None:
-        return await super().wait(timeout)
+        return await super().wait(timeout)  # type: ignore
 
     def stop(self, exceptions: bool = True) -> None:
-        return super().stop(exceptions)
+        return super().stop(exceptions)  # type: ignore

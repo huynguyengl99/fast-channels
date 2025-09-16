@@ -1,16 +1,17 @@
 import functools
 from typing import Any, cast
 
-from ..exceptions import StopConsumer
-from ..layers import BaseChannelLayer, get_channel_layer
-from ..types import (
+from fast_channels.exceptions import StopConsumer
+from fast_channels.layers import BaseChannelLayer, get_channel_layer
+from fast_channels.type_defs import (
+    ASGIApplication,
     ASGIApplicationProtocol,
     ASGIReceiveCallable,
     ASGISendCallable,
     ChannelMessage,
     ChannelScope,
 )
-from ..utils import await_many_dispatch
+from fast_channels.utils import await_many_dispatch
 
 
 def get_handler_name(message: ChannelMessage) -> str:
@@ -22,7 +23,7 @@ def get_handler_name(message: ChannelMessage) -> str:
     if "type" not in message:
         raise ValueError("Incoming message has no 'type' attribute")
     # Extract type and replace . with _
-    handler_name = message["type"].replace(".", "_")
+    handler_name = cast(str, message["type"].replace(".", "_"))
     if handler_name.startswith("_"):
         raise ValueError("Malformed type in message (leading underscore)")
     return handler_name
@@ -101,17 +102,22 @@ class AsyncConsumer:
         """
 
         class ASGIWrapper:
-            def __init__(self, **initkwargs):
+            def __init__(self, **initkwargs: Any):
                 self.cls = cls
                 self.initkwargs = initkwargs
 
-            async def __call__(self, scope, receive, send):
+            async def __call__(
+                self,
+                scope: ChannelScope,
+                receive: ASGIReceiveCallable,
+                send: ASGISendCallable,
+            ) -> ASGIApplication | None:
                 instance = self.cls(**self.initkwargs)
-                return await instance(scope, receive, send)
+                return await instance(scope, receive, send)  # type: ignore[func-returns-value]
 
         wrapper = ASGIWrapper()
-        wrapper.consumer_class = cls
-        wrapper.consumer_initkwargs = initkwargs
+        wrapper.consumer_class = cls  # type: ignore
+        wrapper.consumer_initkwargs = initkwargs  # type: ignore
 
         # Take name and docstring from class
         functools.update_wrapper(wrapper, cls, updated=())

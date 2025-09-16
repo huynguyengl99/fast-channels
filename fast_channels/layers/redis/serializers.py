@@ -5,12 +5,9 @@ import json
 import random
 from typing import Any
 
-from .types import SymmetricEncryptionKeys
+from cryptography.fernet import Fernet, MultiFernet
 
-try:
-    from cryptography.fernet import Fernet, MultiFernet
-except ImportError:
-    MultiFernet = Fernet = None
+from .type_defs import SymmetricEncryptionKeys
 
 
 class SerializerDoesNotExist(KeyError):
@@ -22,27 +19,26 @@ class BaseMessageSerializer(abc.ABC):
         self,
         symmetric_encryption_keys: SymmetricEncryptionKeys | None = None,
         random_prefix_length: int = 0,
-        expiry=None,
+        expiry: int | None = None,
     ):
         self.random_prefix_length = random_prefix_length
         self.expiry = expiry
         # Set up any encryption objects
         self._setup_encryption(symmetric_encryption_keys)
+        self.crypter: MultiFernet | None = None
 
     def _setup_encryption(
         self, symmetric_encryption_keys: SymmetricEncryptionKeys | None
-    ):
+    ) -> None:
         # See if we can do encryption if they asked
         if symmetric_encryption_keys:
             if isinstance(symmetric_encryption_keys, str | bytes):
                 raise ValueError(
                     "symmetric_encryption_keys must be a list of possible keys"
                 )
-            if MultiFernet is None:
-                raise ValueError(
-                    "Cannot run with encryption without 'cryptography' installed."
-                )
-            sub_fernets = [self.make_fernet(key) for key in symmetric_encryption_keys]
+            sub_fernets: list[Fernet] = [
+                self.make_fernet(key) for key in symmetric_encryption_keys
+            ]
             self.crypter = MultiFernet(sub_fernets)
         else:
             self.crypter = None
@@ -51,11 +47,6 @@ class BaseMessageSerializer(abc.ABC):
         """
         Given a single encryption key, returns a Fernet instance using it.
         """
-        if Fernet is None:
-            raise ValueError(
-                "Cannot run with encryption without 'cryptography' installed."
-            )
-
         if isinstance(key, str):
             key = key.encode("utf-8")
         formatted_key = base64.urlsafe_b64encode(hashlib.sha256(key).digest())
@@ -66,14 +57,14 @@ class BaseMessageSerializer(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def from_bytes(self, message: bytes, *args, **kwargs) -> Any:
+    def from_bytes(self, message: bytes, *args: Any, **kwargs: Any) -> Any:
         raise NotImplementedError
 
-    def serialize(self, message: Any) -> bytes:
+    def serialize(self, raw_message: Any) -> bytes:
         """
         Serializes message to a byte string.
         """
-        message = self.as_bytes(message)
+        message = self.as_bytes(raw_message)
         if self.crypter:
             message = self.crypter.encrypt(message)
 
@@ -102,10 +93,10 @@ class BaseMessageSerializer(abc.ABC):
 
 
 class MissingSerializer(BaseMessageSerializer):
-    exception = None
+    exception: Exception | None = None
 
-    def __init__(self, *args, **kwargs):
-        raise self.exception
+    def __init__(self, *args: Any, **kwargs: Any):
+        raise self.exception  # type: ignore[misc]
 
 
 class JSONSerializer(BaseMessageSerializer):
@@ -113,16 +104,16 @@ class JSONSerializer(BaseMessageSerializer):
     # thus we must force bytes conversion
     # we use UTF-8 since it is the recommended encoding for interoperability
     # see https://docs.python.org/3/library/json.html#character-encodings
-    def as_bytes(self, message: Any, *args: Any, **kwargs: Any) -> bytes:
-        message = json.dumps(message, *args, **kwargs)
+    def as_bytes(self, raw_message: Any, *args: Any, **kwargs: Any) -> bytes:  # type: ignore[override]
+        message = json.dumps(raw_message, *args, **kwargs)
         return message.encode("utf-8")
 
-    from_bytes = staticmethod(json.loads)
+    from_bytes = staticmethod(json.loads)  # type: ignore[assignment]
 
 
 # code ready for a future in which msgpack may become an optional dependency
 try:
-    import msgpack
+    import msgpack  # type: ignore[import-untyped]
 except ImportError as exc:
 
     class MsgPackSerializer(MissingSerializer):
@@ -130,9 +121,9 @@ except ImportError as exc:
 
 else:
 
-    class MsgPackSerializer(BaseMessageSerializer):
-        as_bytes = staticmethod(msgpack.packb)
-        from_bytes = staticmethod(msgpack.unpackb)
+    class MsgPackSerializer(BaseMessageSerializer):  # type: ignore
+        as_bytes = staticmethod(msgpack.packb)  # pyright: ignore
+        from_bytes = staticmethod(msgpack.unpackb)  # pyright: ignore
 
 
 class SerializersRegistry:
@@ -140,8 +131,8 @@ class SerializersRegistry:
     Serializers registry inspired by that of ``django.core.serializers``.
     """
 
-    def __init__(self):
-        self._registry = {}
+    def __init__(self) -> None:
+        self._registry: dict[str, type[BaseMessageSerializer]] = {}
 
     def register_serializer(
         self, format: str, serializer_class: type[BaseMessageSerializer]
@@ -175,4 +166,4 @@ class SerializersRegistry:
 
 registry = SerializersRegistry()
 registry.register_serializer("json", JSONSerializer)
-registry.register_serializer("msgpack", MsgPackSerializer)
+registry.register_serializer("msgpack", MsgPackSerializer)  # type: ignore[type-abstract]

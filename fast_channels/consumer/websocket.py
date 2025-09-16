@@ -1,13 +1,13 @@
 import json
 from typing import Any
 
-from ..exceptions import (
+from fast_channels.exceptions import (
     AcceptConnection,
     DenyConnection,
     InvalidChannelLayerError,
     StopConsumer,
 )
-from ..types import (
+from fast_channels.type_defs import (
     ChannelHeaders,
     WebSocketAcceptEvent,
     WebSocketCloseEvent,
@@ -15,6 +15,7 @@ from ..types import (
     WebSocketDisconnectEvent,
     WebSocketReceiveEvent,
 )
+
 from .base import AsyncConsumer
 
 
@@ -26,7 +27,7 @@ class AsyncWebsocketConsumer(AsyncConsumer):
 
     groups: list[str]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         if not getattr(self, "groups", None):
             self.groups = []
 
@@ -36,7 +37,8 @@ class AsyncWebsocketConsumer(AsyncConsumer):
         """
         try:
             for group in self.groups:
-                await self.channel_layer.group_add(group, self.channel_name)
+                if self.channel_layer:
+                    await self.channel_layer.group_add(group, self.channel_name)
         except AttributeError:
             raise InvalidChannelLayerError(
                 "BACKEND is unconfigured or doesn't support groups"
@@ -53,7 +55,7 @@ class AsyncWebsocketConsumer(AsyncConsumer):
 
     async def accept(
         self, subprotocol: str | None = None, headers: ChannelHeaders | None = None
-    ):
+    ) -> None:
         """
         Accepts an incoming socket
         """
@@ -64,7 +66,7 @@ class AsyncWebsocketConsumer(AsyncConsumer):
         }
         await super().send(message)
 
-    async def websocket_receive(self, message: WebSocketReceiveEvent):
+    async def websocket_receive(self, message: WebSocketReceiveEvent) -> None:
         """
         Called when a WebSocket frame is received. Decodes it and passes it
         to receive().
@@ -82,7 +84,7 @@ class AsyncWebsocketConsumer(AsyncConsumer):
         """
         pass
 
-    async def send(
+    async def send(  # type: ignore[override]
         self,
         text_data: str | None = None,
         bytes_data: bytes | None = None,
@@ -121,7 +123,8 @@ class AsyncWebsocketConsumer(AsyncConsumer):
         """
         try:
             for group in self.groups:
-                await self.channel_layer.group_discard(group, self.channel_name)
+                if self.channel_layer:
+                    await self.channel_layer.group_discard(group, self.channel_name)
         except AttributeError:
             raise InvalidChannelLayerError(
                 "BACKEND is unconfigured or doesn't support groups"
