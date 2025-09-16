@@ -9,8 +9,8 @@ from fast_channels.layers import (
     InMemoryChannelLayer,
     RedisChannelLayer,
     RedisPubSubChannelLayer,
+    register_channel_layer,
 )
-from fast_channels.layers.registry import register_channel_layer
 
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6399")
 

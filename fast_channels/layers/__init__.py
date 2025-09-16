@@ -4,10 +4,12 @@ from .redis import (
     RedisChannelLayer,
     RedisPubSubChannelLayer,
 )
-from .registry import get_channel_layer
+from .registry import ChannelLayerRegistry, get_channel_layer, register_channel_layer
 
 __all__ = [
     "get_channel_layer",
+    "register_channel_layer",
+    "ChannelLayerRegistry",
     "BaseChannelLayer",
     "InMemoryChannelLayer",
     "RedisPubSubChannelLayer",
