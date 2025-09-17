@@ -28,8 +28,20 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13"]
       fail-fast: false
+    env:
+      REDIS_URL: redis://localhost:6379
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Install the latest version of uv
@@ -44,6 +56,18 @@ jobs:
 
   coverage:
     runs-on: ubuntu-latest
+    env:
+      REDIS_URL: redis://localhost:6379
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - name: Install the latest version of uv
@@ -59,3 +83,48 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  test-redis-sentinel:
+    runs-on: ubuntu-latest
+    env:
+      REDIS_SENTINEL_HOST: localhost
+      REDIS_SENTINEL_PORT: 26379
+      REDIS_SENTINEL_SERVICE_NAME: sentinel
+      REDIS_SENTINEL_PASSWORD: channels_redis
+      REDIS_URL: redis://localhost:6379
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      sentinel:
+        image: bitnami/redis-sentinel
+        ports:
+          - 26379:26379
+        options: >-
+          --health-cmd "redis-cli -p 26379 ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        env:
+          REDIS_MASTER_HOST: redis
+          REDIS_MASTER_SET: sentinel
+          REDIS_SENTINEL_QUORUM: "1"
+          REDIS_SENTINEL_PASSWORD: channels_redis
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          python-version: "3.11"
+      - name: Install tox
+        run: uv tool install tox --with tox-uv
+      - name: Run Redis Sentinel tests
+        run: tox -e extras
