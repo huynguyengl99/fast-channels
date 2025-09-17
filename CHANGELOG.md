@@ -1,3 +1,9 @@
+## v0.1.1 (2025-09-18)
+
+### Fix
+
+- migrate bitnami to bitnamisecure repo for redis sentinel
+
 ## v0.1.0 (2025-09-18)
 
 ### Feat
