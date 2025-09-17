@@ -103,7 +103,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       sentinel:
-        image: bitnami/redis-sentinel
+        image: bitnamisecure/redis-sentinel
         ports:
           - 26379:26379
         options: >-
