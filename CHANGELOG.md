@@ -1,0 +1,14 @@
+## v0.1.0 (2025-09-18)
+
+### Feat
+
+- add project documentation and complete tutorial
+- improve sandbox UI and add no-layer chat
+- add full type hints to package
+- add type hints for package
+- implement Django Channels-compatible library for FastAPI/Starlette
+- Init Fast Channels package
+
+### Fix
+
+- update sandbox ui analytics socket
