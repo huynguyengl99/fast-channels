@@ -67,7 +67,10 @@ async def send_notification():
         "notifications",
         {
             "type": "notification_message",
-            "message": "🚨 Alert: High CPU usage detected on server",
+            "data": {
+                "type": "system",
+                "message": "🚨 Alert: High CPU usage detected on server",
+            },
         },
     )
 
@@ -120,7 +123,10 @@ async def send_to_multiple_layers():
         "notifications",
         {
             "type": "notification_message",
-            "message": "🔔 Multi-layer broadcast: Notification",
+            "data": {
+                "type": "broadcast",
+                "message": "🔔 Multi-layer broadcast: Notification",
+            },
         },
     )
 
@@ -160,7 +166,11 @@ async def periodic_announcements():
                 )
             else:  # notifications
                 await layer.group_send(
-                    group, {"type": "notification_message", "message": message}
+                    group,
+                    {
+                        "type": "notification_message",
+                        "data": {"type": "periodic", "message": message},
+                    },
                 )
             print(f"✅ Sent announcement #{i+1}")
 

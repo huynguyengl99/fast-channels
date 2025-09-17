@@ -1,4 +1,11 @@
-from fast_channels.consumer.websocket import AsyncWebsocketConsumer
+"""
+Layers Combo Consumers - Different channel layer types working together.
+"""
+
+from fast_channels.consumer.websocket import (
+    AsyncJsonWebsocketConsumer,
+    AsyncWebsocketConsumer,
+)
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -77,9 +84,9 @@ class ReliableChatConsumer(AsyncWebsocketConsumer):
         await self.send(event["message"])
 
 
-class NotificationConsumer(AsyncWebsocketConsumer):
+class NotificationConsumer(AsyncJsonWebsocketConsumer):
     """
-    Consumer for real-time notifications.
+    Consumer for real-time notifications using JSON messages.
     """
 
     channel_layer_alias = "notifications"
@@ -91,17 +98,22 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             "notifications",
             {
                 "type": "notification_message",
-                "message": "🔔 Connected to notifications!",
+                "data": {"type": "system", "message": "🔔 Connected to notifications!"},
             },
         )
 
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+    async def receive_json(self, content, **kwargs):
         # Echo notification back to all connected clients
         await self.channel_layer.group_send(
             "notifications",
             {
                 "type": "notification_message",
-                "message": f"🔔 Notification: {text_data}",
+                "data": {
+                    "type": "user",
+                    "message": (
+                        f"🔔 Notification: {content.get('message', 'No message')}"
+                    ),
+                },
             },
         )
 
@@ -112,7 +124,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         """
         Called when a notification is sent to the group.
         """
-        await self.send(event["message"])
+        await self.send_json(event["data"])
 
 
 class AnalyticsConsumer(AsyncWebsocketConsumer):
@@ -141,21 +153,3 @@ class AnalyticsConsumer(AsyncWebsocketConsumer):
         Called when an analytics event is sent to the group.
         """
         await self.send(event["message"])
-
-
-class SystemMessageConsumer(AsyncWebsocketConsumer):
-    """
-    Consumer for system messages without using channel layers.
-    Direct connection without group messaging.
-    """
-
-    async def connect(self):
-        await self.accept()
-        await self.send("🔧 System: Connection established!")
-
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
-        # Echo back system message directly without using layers
-        await self.send(f"🔧 System Echo: {text_data}")
-
-    async def disconnect(self, close_code):
-        pass

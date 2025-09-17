@@ -9,9 +9,8 @@ Before starting development, ensure you have the following installed:
 
 
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
--
 - [uv](https://docs.astral.sh/uv/getting-started/installation/) for Python package management
-- Python 3.10+ (project supports 3.10, 3.11, 3.12, and 3.13)
+- Python 3.11+ (project supports 3.11, 3.12, and 3.13)
 
 ## Install the library for development
 
@@ -42,7 +41,7 @@ uv tool install tox
 tox
 
 # Run tests for a specific environment
-tox -e py310
+tox -e py311
 
 # Run only the linting checks
 tox -e lint

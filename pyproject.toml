@@ -8,6 +8,7 @@ dev = [
   "fastapi>=0.116.1",
   "mypy>=1.18.1",
   "pyright>=1.1.405",
+  "rq>=2.6.0",
   "types-cryptography>=3.3.23.2",
   "uvicorn[standard]>=0.35.0"
 ]
@@ -54,11 +55,13 @@ classifiers = [
   "Topic :: Software Development :: Libraries",
   "Topic :: Software Development"
 ]
-dependencies = []
+dependencies = [
+  "asgiref>=3,<4"
+]
 description = "Fast Channels brings Django Channels–style consumers and channel layers to FastAPI and Starlette for real-time apps."
 license = {file = "LICENSE"}
 name = "fast-channels"
-readme = "README.md"
+readme = "README.rst"
 requires-python = ">=3.11,<4.0"
 version = "0.0.1"
 
@@ -67,9 +70,6 @@ redis = [
   "cryptography",
   "msgpack",
   "redis"
-]
-with-test = [
-  "asgiref>=3,<4"
 ]
 
 [project.urls]

@@ -39,9 +39,9 @@ h1 {
 
 .chat-container {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, 1fr);
     gap: 20px;
-    max-width: 1200px;
+    max-width: 1400px;
     margin: 0 auto;
 }
 
@@ -61,6 +61,14 @@ h1 {
     border-top: 3px solid #4a90e2;
 }
 
+.room-chat {
+    border-top: 3px solid #e74c3c;
+}
+
+.job-chat {
+    border-top: 3px solid #9b59b6;
+}
+
 .chat-box h3 {
     margin-bottom: 16px;
     font-size: 1.1em;
@@ -73,6 +81,14 @@ h1 {
 
 .regular-chat h3 {
     color: #4a90e2;
+}
+
+.room-chat h3 {
+    color: #e74c3c;
+}
+
+.job-chat h3 {
+    color: #9b59b6;
 }
 
 .input-form {
@@ -189,6 +205,55 @@ h1 {
     background: #9b59b6;
     color: white;
     margin-left: auto;
+}
+
+.room {
+    background: #e74c3c;
+    color: white;
+    margin-left: auto;
+}
+
+.job {
+    background: #9b59b6;
+    color: white;
+    margin-left: auto;
+}
+
+.room-controls, .job-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    align-items: center;
+}
+
+.room-controls input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.room-controls button, .job-controls select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.room-controls button {
+    background: #e74c3c;
+    color: white;
+    border: none;
+}
+
+.room-controls button:hover {
+    background: #c0392b;
+}
+
+.job-controls select {
+    background: white;
 }
 
 @media (max-width: 768px) {

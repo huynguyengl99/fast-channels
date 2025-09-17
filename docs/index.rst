@@ -1,24 +1,40 @@
 Welcome to Fast Channels documentation!
 =============================================
 
-Fast Channels brings Django Channels–style consumers and channel layers to FastAPI and Starlette for real-time apps.
-
-.. image:: /_static/interrogate_badge.svg
-   :target: https://github.com/huynguyengl99/fast-channels
-   :alt: Documentation Coverage
+.. include:: ../README.rst
 
 Contents
 --------
 
 .. toctree::
-    :maxdepth: 2
-    :caption: User guide
+    :maxdepth: 1
+    :caption: Getting Started
 
     introduction
+    installation
+    concepts
+
+.. toctree::
+    :maxdepth: 1
+    :caption: Tutorial
+
+    tutorial/index
+    tutorial/preparation
+    tutorial/system-messages
+    tutorial/room-chat
+    tutorial/background-jobs
+    tutorial/showcase
 
 .. toctree::
     :maxdepth: 2
-    :caption: Reference
+    :caption: API Reference
+
+    reference/consumers
+    reference/layers
+    reference/middleware
+    reference/testing
+    reference/exceptions
+    reference/utils
 
 .. toctree::
    :maxdepth: 1

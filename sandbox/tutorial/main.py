@@ -1,33 +1,28 @@
 """
-FastAPI WebSocket Chat Demo - Full Implementation
+FastAPI WebSocket Chat Demo - Template Base
 
-This is the complete implementation showcasing all fast-channels features.
-See tutorial/ directory for step-by-step learning files.
+This template provides a starting point for building WebSocket chat applications
+with fast-channels. Follow the comments to add your own consumers and features.
 """
 
 from fastapi import APIRouter, FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-# Import consumers from modular apps
-from sandbox.apps.background_jobs.consumer import (
-    BackgroundJobConsumer,  # RQ background jobs
-)
-from sandbox.apps.room_chat.consumer import RoomChatConsumer  # Dynamic room connections
-from sandbox.apps.showcase.consumer import (  # Multiple channel layer types
-    AnalyticsConsumer,
-    ChatConsumer,
-    NotificationConsumer,
-    ReliableChatConsumer,
-)
-from sandbox.apps.system_chat.consumer import (
-    SystemMessageConsumer,  # Direct WebSocket (no layers)
-)
+# TODO: Import your consumers here (uncomment as needed)
+# from sandbox.apps.system_chat.consumer import SystemMessageConsumer
+# from sandbox.apps.room_chat.consumer import RoomChatConsumer
+# from sandbox.apps.background_jobs.consumer import BackgroundJobConsumer
+# from sandbox.apps.showcase.consumer import (
+#     AnalyticsConsumer,
+#     ChatConsumer,
+#     NotificationConsumer,
+#     ReliableChatConsumer,
+# )
 
-# Setup channel layers configuration
-from sandbox.layers import setup_layers
-
-setup_layers()
+# TODO: Import and setup your channel layers
+# from sandbox.layers import setup_layers
+# setup_layers()
 
 app = FastAPI()
 
@@ -101,7 +96,7 @@ html = """
                 <ul id='messages' class='messages'></ul>
             </div>
         </div>
-        <!-- Load single JavaScript file with all functionality -->
+
         <script src="/static/js/main.js"></script>
     </body>
 </html>
@@ -120,25 +115,14 @@ app.include_router(home_router)
 # ----------------- WebSocket Sub-App -----------------
 ws_router = FastAPI()
 
-# WebSocket routes for different consumer types
-ws_router.add_websocket_route("/chat", ChatConsumer.as_asgi())  # Basic chat layer
-ws_router.add_websocket_route(
-    "/reliable", ReliableChatConsumer.as_asgi()
-)  # Queue-based reliable messaging
-ws_router.add_websocket_route(
-    "/notifications", NotificationConsumer.as_asgi()
-)  # Real-time notifications
-ws_router.add_websocket_route(
-    "/analytics", AnalyticsConsumer.as_asgi()
-)  # Analytics events
-ws_router.add_websocket_route(
-    "/system", SystemMessageConsumer.as_asgi()
-)  # Direct WebSocket (no layers)
-ws_router.add_websocket_route(
-    "/backgroundjob", BackgroundJobConsumer.as_asgi()
-)  # RQ background job processing
-ws_router.add_websocket_route(
-    "/room/{room_name}", RoomChatConsumer.as_asgi()
-)  # Dynamic room connections
+# TODO: Add your WebSocket routes here
+# Example routes:
+# ws_router.add_websocket_route("/system", SystemMessageConsumer.as_asgi())
+# ws_router.add_websocket_route("/room/{room_name}", RoomChatConsumer.as_asgi())
+# ws_router.add_websocket_route("/backgroundjob", BackgroundJobConsumer.as_asgi())
+# ws_router.add_websocket_route("/chat", ChatConsumer.as_asgi())
+# ws_router.add_websocket_route("/reliable", ReliableChatConsumer.as_asgi())
+# ws_router.add_websocket_route("/notifications", NotificationConsumer.as_asgi())
+# ws_router.add_websocket_route("/analytics", AnalyticsConsumer.as_asgi())
 
 app.mount("/ws", ws_router)
