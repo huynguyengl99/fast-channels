@@ -1,5 +1,5 @@
 """
-Channel layer management and configuration, compatible with Django Channels.
+Channel layer management and configuration
 """
 
 from .base import BaseChannelLayer
@@ -50,15 +50,39 @@ class ChannelLayerRegistry:
         self._layers.clear()
 
     def __contains__(self, alias: str) -> bool:
+        """Check if a channel layer alias is registered.
+
+        Args:
+            alias: The channel layer alias to check.
+
+        Returns:
+            True if the alias is registered, False otherwise.
+        """
         return alias in self._layers
 
     def __getitem__(self, alias: str) -> BaseChannelLayer:
+        """Get a channel layer by alias.
+
+        Args:
+            alias: The channel layer alias.
+
+        Returns:
+            The channel layer instance.
+
+        Raises:
+            KeyError: If the alias is not registered.
+        """
         layer = self._layers.get(alias)
         if layer is None:
             raise KeyError(f"Channel layer '{alias}' not registered")
         return layer
 
     def __len__(self) -> int:
+        """Get the number of registered channel layers.
+
+        Returns:
+            The number of registered channel layers.
+        """
         return len(self._layers)
 
 
@@ -69,7 +93,6 @@ channel_layers = ChannelLayerRegistry()
 def get_channel_layer(alias: str) -> BaseChannelLayer | None:
     """
     Returns a channel layer by alias.
-    Compatible with Django Channels get_channel_layer function.
     """
     return channel_layers.get(alias)
 

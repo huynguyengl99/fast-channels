@@ -1,3 +1,9 @@
+"""Core Redis channel layer implementation.
+
+This module provides the main Redis-based channel layer implementation
+with support for message persistence, group management, and connection pooling.
+"""
+
 import asyncio
 import collections
 import functools
@@ -46,6 +52,12 @@ class ChannelLock:
     async def acquire(self, channel: str) -> Literal[True]:
         """
         Acquire the lock for the given channel.
+
+        Args:
+            channel: The channel name to acquire lock for.
+
+        Returns:
+            Always returns True when lock is acquired.
         """
         self.wait_counts[channel] += 1
         return await self.locks[channel].acquire()
@@ -53,12 +65,21 @@ class ChannelLock:
     def locked(self, channel: str) -> bool:
         """
         Return ``True`` if the lock for the given channel is acquired.
+
+        Args:
+            channel: The channel name to check.
+
+        Returns:
+            True if the channel lock is currently acquired.
         """
         return self.locks[channel].locked()
 
     def release(self, channel: str) -> None:
         """
         Release the lock for the given channel.
+
+        Args:
+            channel: The channel name to release lock for.
         """
         self.locks[channel].release()
         self.wait_counts[channel] -= 1
@@ -71,7 +92,10 @@ Item = TypeVar("Item")
 
 
 class BoundedQueue(asyncio.Queue[Item]):
+    """Queue that drops oldest items when full instead of blocking."""
+
     def put_nowait(self, item: Item) -> None:
+        """Put an item in the queue without blocking, dropping oldest if full."""
         if self.full():
             # see: https://github.com/django/channels_redis/issues/212
             # if we actually get into this code block, it likely means that
@@ -84,12 +108,15 @@ class BoundedQueue(asyncio.Queue[Item]):
 
 
 class RedisLoopLayer:
+    """Event loop-specific Redis connection manager."""
+
     def __init__(self, channel_layer: "RedisChannelLayer"):
         self._lock = asyncio.Lock()
         self.channel_layer = channel_layer
         self._connections: dict[int, aioredis.Redis] = {}
 
     def get_connection(self, index: int) -> aioredis.Redis:
+        """Get a Redis connection for the given shard index."""
         if index not in self._connections:
             pool = self.channel_layer.create_pool(index)
             self._connections[index] = aioredis.Redis(connection_pool=pool)
@@ -97,6 +124,7 @@ class RedisLoopLayer:
         return self._connections[index]
 
     async def flush(self) -> None:
+        """Close all Redis connections for this event loop."""
         async with self._lock:
             for index in list(self._connections):
                 connection = self._connections.pop(index)
@@ -173,6 +201,7 @@ class RedisChannelLayer(BaseChannelLayer):
         self.receive_clean_locks = ChannelLock()
 
     def create_pool(self, index: int) -> aioredis.ConnectionPool:
+        """Create a Redis connection pool for the given host index."""
         return create_pool(self.hosts[index])
 
     ### Channel layer API ###
@@ -431,6 +460,7 @@ class RedisChannelLayer(BaseChannelLayer):
             self.receive_cleaners.append(cleaner)
 
             def _cleanup_done(cleaner: Task[None]) -> None:
+                """Cleanup callback when a receive cleaner task completes."""
                 self.receive_cleaners.remove(cleaner)
                 self.receive_clean_locks.release(channel_key)
 
@@ -687,9 +717,22 @@ class RedisChannelLayer(BaseChannelLayer):
     ### Internal functions ###
 
     def consistent_hash(self, value: str | bytes) -> int:
+        """Hash a value consistently to one of the Redis shards.
+
+        Args:
+            value: The value to hash.
+
+        Returns:
+            The shard index for the given value.
+        """
         return consistent_hash(value, self.ring_size)
 
     def __str__(self) -> str:
+        """Return string representation of the Redis channel layer.
+
+        Returns:
+            String showing the class name and configured hosts.
+        """
         return f"{self.__class__.__name__}(hosts={self.hosts})"
 
     ### Connection handling ###

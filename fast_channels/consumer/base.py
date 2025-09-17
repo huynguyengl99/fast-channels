@@ -1,3 +1,9 @@
+"""Base consumer implementations for the fast-channels framework.
+
+This module provides the core consumer classes that handle ASGI applications
+and provide the foundation for all channel-based message consumers.
+"""
+
 import functools
 from typing import Any, cast
 
@@ -18,6 +24,15 @@ def get_handler_name(message: ChannelMessage) -> str:
     """
     Looks at a message, checks it has a sensible type, and returns the
     handler name for that type.
+
+    Args:
+        message: A channel message containing a 'type' field.
+
+    Returns:
+        The handler name for the message type with dots replaced by underscores.
+
+    Raises:
+        ValueError: If message has no 'type' attribute or type starts with underscore.
     """
     # Check message looks OK
     if "type" not in message:
@@ -48,6 +63,11 @@ class AsyncConsumer:
     ) -> None:
         """
         Dispatches incoming messages to type-based handlers asynchronously.
+
+        Args:
+            scope: The ASGI scope for this consumer.
+            receive: ASGI receive callable for receiving messages.
+            send: ASGI send callable for sending messages.
         """
         self.scope = scope
 
@@ -79,6 +99,12 @@ class AsyncConsumer:
     async def dispatch(self, message: ChannelMessage) -> None:
         """
         Works out what to do with a message.
+
+        Args:
+            message: The channel message to dispatch to appropriate handler.
+
+        Raises:
+            ValueError: If no handler exists for the message type.
         """
         handler = getattr(self, get_handler_name(message), None)
         if handler:
@@ -89,6 +115,9 @@ class AsyncConsumer:
     async def send(self, message: ChannelMessage) -> None:
         """
         Overrideable/callable-by-subclasses send method.
+
+        Args:
+            message: The channel message to send.
         """
         await self.base_send(message)
 
@@ -98,11 +127,22 @@ class AsyncConsumer:
         Return an ASGI v3 single callable that instantiates a consumer instance
         per scope. Similar in purpose to Django's as_view().
 
-        initkwargs will be used to instantiate the consumer instance.
+        Args:
+            **initkwargs: Keyword arguments used to instantiate the consumer instance.
+
+        Returns:
+            An ASGI application protocol wrapper that creates consumer instances.
         """
 
         class ASGIWrapper:
+            """ASGI application wrapper for consumer classes."""
+
             def __init__(self, **initkwargs: Any):
+                """Initialize the ASGI wrapper with consumer initialization arguments.
+
+                Args:
+                    **initkwargs: Keyword arguments for consumer initialization.
+                """
                 self.cls = cls
                 self.initkwargs = initkwargs
 
@@ -112,6 +152,16 @@ class AsyncConsumer:
                 receive: ASGIReceiveCallable,
                 send: ASGISendCallable,
             ) -> ASGIApplication | None:
+                """Handle ASGI requests by instantiating and calling the consumer.
+
+                Args:
+                    scope: The ASGI scope for this request.
+                    receive: ASGI receive callable for receiving messages.
+                    send: ASGI send callable for sending messages.
+
+                Returns:
+                    None after handling the ASGI request.
+                """
                 instance = self.cls(**self.initkwargs)
                 return await instance(scope, receive, send)  # type: ignore[func-returns-value]
 

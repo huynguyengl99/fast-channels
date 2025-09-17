@@ -1,3 +1,9 @@
+"""Utility functions for fast-channels framework.
+
+This module contains helper functions used across the fast-channels framework,
+including async utilities and domain matching functions.
+"""
+
 import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -12,6 +18,10 @@ async def await_many_dispatch(
     """
     Given a set of consumer callables, awaits on them all and passes results
     from them to the dispatch awaitable as they come in.
+
+    Args:
+        consumer_callables: List of async callables to await on.
+        dispatch: Function to call with results as they come in.
     """
     # Call all callables, and ensure all return types are Futures
     tasks = [
@@ -46,6 +56,13 @@ def is_same_domain(host: str, pattern: str) -> bool:
     Any pattern beginning with a period matches a domain and all of its
     subdomains. (e.g. ``.example.com`` matches ``example.com`` and
     ``foo.example.com``). Anything else is an exact string match.
+
+    Args:
+        host: The hostname to check.
+        pattern: The pattern to match against (may include wildcards).
+
+    Returns:
+        True if the host matches the pattern.
     """
     if not pattern:
         return False

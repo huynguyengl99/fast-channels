@@ -1,5 +1,11 @@
 # pyright: reportUnknownVariableType=false, reportUnknownMemberType=false
 
+"""Redis Pub/Sub channel layer implementation.
+
+This module provides a Redis-based channel layer implementation using Redis Pub/Sub
+for message delivery with support for sharding across multiple Redis instances.
+"""
+
 import asyncio
 import functools
 import logging
@@ -33,16 +39,35 @@ logger = logging.getLogger(__name__)
 async def _async_proxy(
     obj: "RedisPubSubChannelLayer", name: str, *args: Any, **kwargs: Any
 ) -> Any:
-    # Must be defined as a function and not a method due to
-    # https://bugs.python.org/issue38364
+    """Async proxy function for delegating calls to loop-specific layer instances.
+
+    Must be defined as a function and not a method due to
+    https://bugs.python.org/issue38364
+
+    Args:
+        obj: The RedisPubSubChannelLayer instance.
+        name: The method name to call on the loop layer.
+        *args: Positional arguments to pass to the method.
+        **kwargs: Keyword arguments to pass to the method.
+
+    Returns:
+        The result of the method call.
+    """
     layer = obj._get_layer()  # pyright: ignore[reportPrivateUsage]
     return await getattr(layer, name)(*args, **kwargs)
 
 
 CachedRedisPubSubLayers: TypeAlias = dict[AbstractEventLoop, "RedisPubSubLoopLayer"]
+"""Type alias for cache mapping event loops to their Redis Pub/Sub layer instances."""
 
 
 class RedisPubSubChannelLayer(BaseChannelLayer):
+    """Redis Pub/Sub channel layer with event loop isolation.
+
+    This class acts as a proxy that delegates operations to loop-specific
+    RedisPubSubLoopLayer instances to ensure proper async context isolation.
+    """
+
     def __init__(
         self,
         *args: Any,
@@ -50,6 +75,14 @@ class RedisPubSubChannelLayer(BaseChannelLayer):
         serializer_format: Literal["msgpack", "json"] | str = "msgpack",
         **kwargs: Any,
     ) -> None:
+        """Initialize the Redis Pub/Sub channel layer.
+
+        Args:
+            *args: Arguments to pass to the loop layer constructor.
+            symmetric_encryption_keys: Keys for message encryption.
+            serializer_format: Message serialization format ("msgpack" or "json").
+            **kwargs: Additional keyword arguments for the loop layer.
+        """
         self._args = args
         self._kwargs = kwargs
         self._layers: CachedRedisPubSubLayers = {}
@@ -60,6 +93,14 @@ class RedisPubSubChannelLayer(BaseChannelLayer):
         )
 
     def __getattribute__(self, name: str) -> Any:
+        """Proxy method calls to the appropriate loop-specific layer instance.
+
+        Args:
+            name: The attribute/method name being accessed.
+
+        Returns:
+            The attribute value or a partial function for async methods.
+        """
         # Check if this is one of the methods we want to proxy to the loop layer
         if name in (
             "new_channel",
@@ -92,6 +133,11 @@ class RedisPubSubChannelLayer(BaseChannelLayer):
         return cast(ChannelMessage, self._serializer.deserialize(message))
 
     def _get_layer(self) -> "RedisPubSubLoopLayer":
+        """Get or create a loop-specific Redis Pub/Sub layer instance.
+
+        Returns:
+            The RedisPubSubLoopLayer instance for the current event loop.
+        """
         loop = asyncio.get_running_loop()
 
         try:
@@ -109,8 +155,10 @@ class RedisPubSubChannelLayer(BaseChannelLayer):
 
 
 class RedisPubSubLoopLayer:
-    """
-    Channel Layer that uses Redis's pub/sub functionality.
+    """Event loop-specific Redis Pub/Sub channel layer implementation.
+
+    This class provides the actual Redis Pub/Sub functionality for a specific
+    event loop, handling message routing and Redis connection management.
     """
 
     def __init__(
@@ -122,6 +170,16 @@ class RedisPubSubLoopLayer:
         channel_layer: RedisPubSubChannelLayer | None = None,
         **kwargs: Any,
     ):
+        """Initialize the Redis Pub/Sub loop layer.
+
+        Args:
+            hosts: List of Redis host configurations.
+            prefix: Prefix for Redis keys.
+            on_disconnect: Callback for disconnect events.
+            on_reconnect: Callback for reconnect events.
+            channel_layer: Parent channel layer instance.
+            **kwargs: Additional keyword arguments.
+        """
         self.prefix = prefix
 
         self.on_disconnect = on_disconnect
@@ -161,6 +219,11 @@ class RedisPubSubLoopLayer:
         return f"{self.prefix}__group__{group}"
 
     async def _subscribe_to_channel(self, channel: str) -> None:
+        """Subscribe to a Redis channel and create a local message queue.
+
+        Args:
+            channel: The channel name to subscribe to.
+        """
         self.channels[channel] = asyncio.Queue()
         shard = self._get_shard(channel)
         await shard.subscribe(channel)
@@ -284,9 +347,17 @@ class RedisPubSubLoopLayer:
 
 
 class RedisSingleShardConnection:
+    """Connection to a single Redis shard for pub/sub operations."""
+
     def __init__(
         self, host: ChannelDecodedRedisHost, channel_layer: RedisPubSubLoopLayer
     ):
+        """Initialize connection to a Redis shard.
+
+        Args:
+            host: Redis host configuration.
+            channel_layer: Parent channel layer instance.
+        """
         self.host = host
         self.channel_layer = channel_layer
         self._subscribed_to: set[str] = set()
@@ -296,12 +367,23 @@ class RedisSingleShardConnection:
         self._receive_task: Future[Any] | None = None
 
     async def publish(self, channel: str, message: bytes) -> None:
+        """Publish a message to a Redis channel.
+
+        Args:
+            channel: The channel to publish to.
+            message: The message bytes to publish.
+        """
         async with self._lock:
             self._ensure_redis()
             assert self._redis
             await self._redis.publish(channel, message)
 
     async def subscribe(self, channel: str) -> None:
+        """Subscribe to a Redis channel.
+
+        Args:
+            channel: The channel to subscribe to.
+        """
         async with self._lock:
             if channel not in self._subscribed_to:
                 self._ensure_redis()
@@ -311,6 +393,11 @@ class RedisSingleShardConnection:
                 self._subscribed_to.add(channel)
 
     async def unsubscribe(self, channel: str) -> None:
+        """Unsubscribe from a Redis channel.
+
+        Args:
+            channel: The channel to unsubscribe from.
+        """
         async with self._lock:
             if channel in self._subscribed_to:
                 self._ensure_redis()
@@ -320,6 +407,7 @@ class RedisSingleShardConnection:
                 self._subscribed_to.remove(channel)
 
     async def flush(self) -> None:
+        """Clean up Redis connections and tasks."""
         async with self._lock:
             if self._receive_task is not None:
                 self._receive_task.cancel()
@@ -338,6 +426,7 @@ class RedisSingleShardConnection:
             self._subscribed_to = set()
 
     async def _do_receiving(self) -> None:
+        """Background task to receive messages from Redis pub/sub."""
         while True:
             try:
                 if self._pubsub and self._pubsub.subscribed:
@@ -357,6 +446,11 @@ class RedisSingleShardConnection:
                 await asyncio.sleep(1)
 
     def _receive_message(self, message: dict[str, Any] | None) -> None:
+        """Process a received Redis pub/sub message.
+
+        Args:
+            message: The Redis pub/sub message, or None if no message.
+        """
         if message is not None:
             name = message["channel"]
             data = message["data"]
@@ -370,11 +464,13 @@ class RedisSingleShardConnection:
                         self.channel_layer.channels[channel_name].put_nowait(data)
 
     def _ensure_redis(self) -> None:
+        """Ensure Redis connection and pub/sub are initialized."""
         if self._redis is None:
             pool = create_pool(self.host)
             self._redis = aioredis.Redis(connection_pool=pool)
             self._pubsub = self._redis.pubsub()
 
     def _ensure_receiver(self) -> None:
+        """Ensure the background receiver task is running."""
         if self._receive_task is None:
             self._receive_task = asyncio.ensure_future(self._do_receiving())

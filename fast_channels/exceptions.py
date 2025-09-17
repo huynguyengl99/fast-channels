@@ -1,3 +1,10 @@
+"""Custom exceptions for the fast-channels framework.
+
+This module defines all custom exceptions used throughout the fast-channels
+framework for error handling and flow control.
+"""
+
+
 class InvalidChannelLayerError(ValueError):
     """
     Raised when a channel layer is configured incorrectly.

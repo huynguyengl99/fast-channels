@@ -1,3 +1,9 @@
+"""In-memory channel layer implementation.
+
+This module provides a simple in-memory channel layer for development
+and testing purposes that stores all data in process memory.
+"""
+
 import asyncio
 import random
 import string
@@ -17,7 +23,7 @@ InMemoryGroups: TypeAlias = dict[str, dict[str, float]]
 
 class InMemoryChannelLayer(BaseChannelLayer):
     """
-    In-memory channel layer implementation compatible with Django Channels
+    In-memory channel layer implementation
     """
 
     def __init__(
@@ -27,6 +33,14 @@ class InMemoryChannelLayer(BaseChannelLayer):
         capacity: int = 100,
         channel_capacity: ChannelCapacityDict | None = None,
     ):
+        """Initialize the in-memory channel layer.
+
+        Args:
+            expiry: Message expiry time in seconds (default: 60).
+            group_expiry: Group membership expiry time in seconds (default: 86400).
+            capacity: Default channel capacity (default: 100).
+            channel_capacity: Dict mapping channel patterns to specific capacities.
+        """
         super().__init__(
             expiry=expiry,
             capacity=capacity,
@@ -42,6 +56,13 @@ class InMemoryChannelLayer(BaseChannelLayer):
     async def send(self, channel: str, message: ChannelMessage) -> None:
         """
         Send a message onto a (general or specific) channel.
+
+        Args:
+            channel: The channel name to send to.
+            message: The message to send.
+
+        Raises:
+            ChannelFull: If the channel queue is at capacity.
         """
         # Typecheck
         assert isinstance(message, dict), "message is not a dict"
@@ -64,6 +85,12 @@ class InMemoryChannelLayer(BaseChannelLayer):
         Receive the first message that arrives on the channel.
         If more than one coroutine waits on the same channel, a random one
         of the waiting coroutines will get the result.
+
+        Args:
+            channel: The channel name to receive from.
+
+        Returns:
+            The received message.
         """
         self.require_valid_channel_name(channel)
         self._clean_expired()
@@ -86,6 +113,12 @@ class InMemoryChannelLayer(BaseChannelLayer):
         """
         Returns a new channel name that can be used by something in our
         process as a specific channel.
+
+        Args:
+            prefix: Prefix for the new channel name (default: "specific.").
+
+        Returns:
+            A unique channel name.
         """
         return "{}.inmemory!{}".format(
             prefix,
@@ -121,16 +154,21 @@ class InMemoryChannelLayer(BaseChannelLayer):
 
     # Flush extension
     async def flush(self) -> None:
+        """Clear all channels and groups from memory."""
         self.channels = {}
         self.groups = {}
 
     async def close(self) -> None:
+        """Close the channel layer (no-op for in-memory implementation)."""
         # Nothing to go
         pass
 
     def _remove_from_groups(self, channel: str) -> None:
         """
         Removes a channel from all groups. Used when a message on it expires.
+
+        Args:
+            channel: The channel name to remove from all groups.
         """
         for channels in self.groups.values():
             channels.pop(channel, None)
@@ -139,6 +177,10 @@ class InMemoryChannelLayer(BaseChannelLayer):
     async def group_add(self, group: str, channel: str) -> None:
         """
         Adds the channel name to a group.
+
+        Args:
+            group: The group name.
+            channel: The channel name to add to the group.
         """
         # Check the inputs
         self.require_valid_group_name(group)
@@ -148,6 +190,12 @@ class InMemoryChannelLayer(BaseChannelLayer):
         self.groups[group][channel] = time.time()
 
     async def group_discard(self, group: str, channel: str) -> None:
+        """Remove a channel from a group.
+
+        Args:
+            group: The group name.
+            channel: The channel name to remove from the group.
+        """
         # Both should be text and valid
         self.require_valid_channel_name(channel)
         self.require_valid_group_name(group)
@@ -161,6 +209,12 @@ class InMemoryChannelLayer(BaseChannelLayer):
                 self.groups.pop(group, None)
 
     async def group_send(self, group: str, message: ChannelMessage) -> None:
+        """Send a message to all channels in a group.
+
+        Args:
+            group: The group name to send to.
+            message: The message to send to all channels in the group.
+        """
         # Check types
         assert isinstance(message, dict), "Message is not a dict"
         self.require_valid_group_name(group)

@@ -1,3 +1,9 @@
+"""WebSocket-specific middleware for the fast-channels framework.
+
+This module provides middleware for WebSocket connections, including
+origin validation and connection denial capabilities.
+"""
+
 from collections.abc import Iterable
 from typing import Any, TypeAlias, cast
 from urllib.parse import ParseResult, urlparse
@@ -12,7 +18,10 @@ from fast_channels.type_defs import (
 from fast_channels.utils import is_same_domain
 
 Origin: TypeAlias = str
+"""Type alias for WebSocket origin strings."""
+
 AllowedOrigins: TypeAlias = Iterable[Origin]
+"""Type alias for collections of allowed origins."""
 
 
 class OriginValidator:
@@ -30,6 +39,19 @@ class OriginValidator:
     async def __call__(
         self, scope: ChannelScope, receive: ASGIReceiveCallable, send: ASGISendCallable
     ) -> Any:
+        """Validate WebSocket origin and handle the connection.
+
+        Args:
+            scope: The ASGI scope for the WebSocket connection.
+            receive: ASGI receive callable.
+            send: ASGI send callable.
+
+        Returns:
+            Result from the application or WebSocket denier.
+
+        Raises:
+            ValueError: If used on a non-WebSocket connection.
+        """
         # Make sure the scope is of type websocket
         if scope["type"] != "websocket":
             raise ValueError(
@@ -156,4 +178,5 @@ class WebsocketDenier(AsyncWebsocketConsumer):
     """
 
     async def connect(self) -> None:
+        """Handle connection by immediately denying it."""
         await self.close()

@@ -102,7 +102,7 @@ include = ["fast_channels"]
 [tool.interrogate]
 badge-format = "svg"
 color = true
-exclude = ["build", "docs", "setup.py", "tests"]
+exclude = ["build", "docs", "sandbox", "setup.py", "tests"]
 ext = []
 fail-under = 80
 generate-badge = "docs/_static/"

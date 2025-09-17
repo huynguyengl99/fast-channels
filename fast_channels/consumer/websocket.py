@@ -1,3 +1,9 @@
+"""WebSocket consumer implementations for the fast-channels framework.
+
+This module provides base WebSocket consumer classes for handling WebSocket
+connections with support for JSON message handling and group management.
+"""
+
 import json
 from typing import Any
 
@@ -28,12 +34,21 @@ class AsyncWebsocketConsumer(AsyncConsumer):
     groups: list[str]
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize the WebSocket consumer.
+
+        Args:
+            *args: Positional arguments.
+            **kwargs: Keyword arguments.
+        """
         if not getattr(self, "groups", None):
             self.groups = []
 
     async def websocket_connect(self, message: WebSocketConnectEvent) -> None:
         """
         Called when a WebSocket connection is opened.
+
+        Args:
+            message: WebSocket connect event containing connection details.
         """
         try:
             for group in self.groups:
@@ -51,6 +66,11 @@ class AsyncWebsocketConsumer(AsyncConsumer):
             await self.close()
 
     async def connect(self) -> None:
+        """Handle WebSocket connection establishment.
+
+        Override this method to customize connection handling.
+        By default, automatically accepts the connection.
+        """
         await self.accept()
 
     async def accept(
@@ -58,6 +78,10 @@ class AsyncWebsocketConsumer(AsyncConsumer):
     ) -> None:
         """
         Accepts an incoming socket
+
+        Args:
+            subprotocol: Optional WebSocket subprotocol to use.
+            headers: Optional headers to send with the accept message.
         """
         message: WebSocketAcceptEvent = {
             "type": "websocket.accept",
@@ -70,6 +94,9 @@ class AsyncWebsocketConsumer(AsyncConsumer):
         """
         Called when a WebSocket frame is received. Decodes it and passes it
         to receive().
+
+        Args:
+            message: WebSocket receive event containing the frame data.
         """
         if message.get("text") is not None:
             await self.receive(text_data=message["text"])
@@ -81,6 +108,10 @@ class AsyncWebsocketConsumer(AsyncConsumer):
     ) -> None:
         """
         Called with a decoded WebSocket frame.
+
+        Args:
+            text_data: Text data from the WebSocket frame, if any.
+            bytes_data: Binary data from the WebSocket frame, if any.
         """
         pass
 
@@ -92,6 +123,14 @@ class AsyncWebsocketConsumer(AsyncConsumer):
     ) -> None:
         """
         Sends a reply back down the WebSocket
+
+        Args:
+            text_data: Text data to send, if any.
+            bytes_data: Binary data to send, if any.
+            close: Whether to close the connection after sending.
+
+        Raises:
+            ValueError: If neither text_data nor bytes_data is provided.
         """
         if text_data is not None:
             await super().send({"type": "websocket.send", "text": text_data})
@@ -107,6 +146,10 @@ class AsyncWebsocketConsumer(AsyncConsumer):
     ) -> None:
         """
         Closes the WebSocket from the server end
+
+        Args:
+            code: Close code (defaults to 1000) or boolean for legacy support.
+            reason: Optional reason for closing the connection.
         """
         message: WebSocketCloseEvent = {
             "type": "websocket.close",
@@ -120,6 +163,9 @@ class AsyncWebsocketConsumer(AsyncConsumer):
         """
         Called when a WebSocket connection is closed. Base level so you don't
         need to call super() all the time.
+
+        Args:
+            message: WebSocket disconnect event containing disconnect details.
         """
         try:
             for group in self.groups:
@@ -135,6 +181,9 @@ class AsyncWebsocketConsumer(AsyncConsumer):
     async def disconnect(self, code: int) -> None:
         """
         Called when a WebSocket connection is closed.
+
+        Args:
+            code: The WebSocket close code.
         """
         pass
 
@@ -152,6 +201,16 @@ class AsyncJsonWebsocketConsumer(AsyncWebsocketConsumer):
         bytes_data: bytes | None = None,
         **kwargs: Any,
     ) -> None:
+        """Handle incoming WebSocket frames and decode JSON content.
+
+        Args:
+            text_data: Text data from the WebSocket frame.
+            bytes_data: Bytes data from the WebSocket frame (not supported).
+            **kwargs: Additional keyword arguments.
+
+        Raises:
+            ValueError: If no text data is provided or bytes data is received.
+        """
         if text_data:
             await self.receive_json(await self.decode_json(text_data), **kwargs)
         else:
@@ -160,19 +219,43 @@ class AsyncJsonWebsocketConsumer(AsyncWebsocketConsumer):
     async def receive_json(self, content: Any, **kwargs: Any) -> None:
         """
         Called with decoded JSON content.
+
+        Args:
+            content: The decoded JSON content.
+            **kwargs: Additional keyword arguments.
         """
         pass
 
     async def send_json(self, content: Any, close: bool = False) -> None:
         """
         Encode the given content as JSON and send it to the client.
+
+        Args:
+            content: The content to encode and send as JSON.
+            close: Whether to close the connection after sending.
         """
         await super().send(text_data=await self.encode_json(content), close=close)
 
     @classmethod
     async def decode_json(cls, text_data: str) -> Any:
+        """Decode JSON from text data.
+
+        Args:
+            text_data: JSON string to decode.
+
+        Returns:
+            The decoded JSON object.
+        """
         return json.loads(text_data)
 
     @classmethod
     async def encode_json(cls, content: Any) -> str:
+        """Encode content as JSON string.
+
+        Args:
+            content: Object to encode as JSON.
+
+        Returns:
+            JSON string representation.
+        """
         return json.dumps(content)

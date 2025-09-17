@@ -1,3 +1,9 @@
+"""WebSocket testing utilities for the fast-channels framework.
+
+This module provides WebSocket-specific testing communicators that simplify
+testing WebSocket applications by handling connection setup and message exchange.
+"""
+
 import json
 from collections.abc import Iterable
 from typing import Any, TypeAlias
@@ -28,6 +34,15 @@ class WebsocketCommunicator(ApplicationCommunicator):
         subprotocols: Iterable[str] | None = None,
         spec_version: int | None = None,
     ) -> None:
+        """Initialize WebSocket communicator.
+
+        Args:
+            application: The ASGI application to test.
+            path: WebSocket path (can include query string).
+            headers: Optional headers to send with connection.
+            subprotocols: Optional WebSocket subprotocols to request.
+            spec_version: Optional ASGI spec version to use.
+        """
         parsed = urlparse(path)
         self.scope: ChannelScope = {
             "type": "websocket",
@@ -45,8 +60,12 @@ class WebsocketCommunicator(ApplicationCommunicator):
         """
         Trigger the connection code.
 
-        On an accepted connection, returns (True, <chosen-subprotocol>)
-        On a rejected connection, returns (False, <close-code>)
+        Args:
+            timeout: Timeout for connection in seconds.
+
+        Returns:
+            On an accepted connection, returns (True, <chosen-subprotocol>)
+            On a rejected connection, returns (False, <close-code>)
         """
         await self.send_input({"type": "websocket.connect"})
         response = await self.receive_output(timeout)
@@ -62,6 +81,10 @@ class WebsocketCommunicator(ApplicationCommunicator):
     ) -> None:
         """
         Sends a WebSocket frame to the application.
+
+        Args:
+            text_data: Text data to send (mutually exclusive with bytes_data).
+            bytes_data: Binary data to send (mutually exclusive with text_data).
         """
         # Make sure we have exactly one of the arguments
         assert bool(text_data) != bool(

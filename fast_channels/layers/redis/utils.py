@@ -1,5 +1,11 @@
 # pyright: reportUnknownVariableType=false, reportUnknownMemberType=false
 
+"""Redis utility functions for the fast-channels framework.
+
+This module provides utility functions for Redis operations including
+host configuration parsing, connection management, and consistent hashing.
+"""
+
 import binascii
 import types
 from asyncio import AbstractEventLoop
@@ -33,9 +39,16 @@ def consistent_hash(value: str | bytes, ring_size: int) -> int:
 def wrap_close(
     proxy: "RedisChannelLayer | RedisPubSubChannelLayer", loop: AbstractEventLoop
 ) -> None:
+    """Wrap event loop close to cleanup Redis layers.
+
+    Args:
+        proxy: The Redis channel layer proxy to cleanup.
+        loop: The event loop to wrap.
+    """
     original_impl = loop.close
 
     def _wrapper(self: AbstractEventLoop, *args: Any, **kwargs: Any) -> None:
+        """Wrapper function that cleans up layers before closing the loop."""
         if loop in proxy._layers:  # pyright: ignore[reportPrivateUsage]
             layer = proxy._layers[loop]  # pyright: ignore[reportPrivateUsage]
             del proxy._layers[loop]  # pyright: ignore[reportPrivateUsage]

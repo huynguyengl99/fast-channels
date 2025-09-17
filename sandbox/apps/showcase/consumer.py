@@ -17,6 +17,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
     channel_layer_alias = "chat"
 
     async def connect(self):
+        """Handle WebSocket connection for chat."""
         await self.accept()
         await self.channel_layer.group_send(
             "chat_room",
@@ -24,6 +25,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
 
     async def disconnect(self, code):
+        """Handle WebSocket disconnection for chat."""
         await super().disconnect(code)
         await self.channel_layer.group_send(
             "chat_room",
@@ -31,6 +33,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
 
     async def receive(self, text_data=None, bytes_data=None, **kwargs):
+        """Handle incoming WebSocket messages for chat."""
         await self.channel_layer.group_send(
             "chat_room", {"type": "chat_message", "message": f"💬 {text_data}"}
         )

@@ -1,3 +1,9 @@
+"""Message serialization and encryption for Redis channel layers.
+
+This module provides serializers for encoding/decoding messages sent through
+Redis channel layers, with optional symmetric encryption support.
+"""
+
 import abc
 import base64
 import hashlib
@@ -15,12 +21,26 @@ class SerializerDoesNotExist(KeyError):
 
 
 class BaseMessageSerializer(abc.ABC):
+    """Abstract base class for message serializers with optional encryption.
+
+    Provides symmetric encryption capabilities using the Fernet symmetric encryption
+    from the cryptography library, along with optional random prefix generation.
+    """
+
     def __init__(
         self,
         symmetric_encryption_keys: SymmetricEncryptionKeys | None = None,
         random_prefix_length: int = 0,
         expiry: int | None = None,
     ):
+        """Initialize the serializer with encryption and serialization settings.
+
+        Args:
+            symmetric_encryption_keys: List of encryption keys for message encryption.
+                If provided, enables encryption/decryption of messages.
+            random_prefix_length: Length of random prefix to add to messages.
+            expiry: Message expiry time in seconds. If None, messages don't expire.
+        """
         self.crypter: MultiFernet | None = None
 
         self.random_prefix_length = random_prefix_length
@@ -31,6 +51,15 @@ class BaseMessageSerializer(abc.ABC):
     def _setup_encryption(
         self, symmetric_encryption_keys: SymmetricEncryptionKeys | None
     ) -> None:
+        """Initialize encryption with the provided symmetric keys.
+
+        Args:
+            symmetric_encryption_keys: List of encryption keys. If None,
+                encryption is disabled.
+
+        Raises:
+            ValueError: If symmetric_encryption_keys is not a list when provided.
+        """
         # See if we can do encryption if they asked
         if symmetric_encryption_keys:
             if isinstance(symmetric_encryption_keys, str | bytes):
@@ -55,10 +84,30 @@ class BaseMessageSerializer(abc.ABC):
 
     @abc.abstractmethod
     def as_bytes(self, message: Any, *args: Any, **kwargs: Any) -> bytes:
+        """Convert a message to bytes.
+
+        Args:
+            message: The message to convert.
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            The message as bytes.
+        """
         raise NotImplementedError
 
     @abc.abstractmethod
     def from_bytes(self, message: bytes, *args: Any, **kwargs: Any) -> Any:
+        """Convert bytes back to a message.
+
+        Args:
+            message: The bytes to convert.
+            *args: Additional positional arguments.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            The decoded message.
+        """
         raise NotImplementedError
 
     def serialize(self, raw_message: Any) -> bytes:
@@ -94,18 +143,39 @@ class BaseMessageSerializer(abc.ABC):
 
 
 class MissingSerializer(BaseMessageSerializer):
+    """Placeholder serializer that raises an exception when instantiated.
+
+    Used to indicate that a required serializer dependency is missing.
+    """
+
     exception: Exception | None = None
 
     def __init__(self, *args: Any, **kwargs: Any):
+        """Raise the stored exception to indicate missing dependency."""
         raise self.exception  # type: ignore[misc]
 
 
 class JSONSerializer(BaseMessageSerializer):
+    """JSON message serializer using the standard json module.
+
+    Uses UTF-8 encoding for interoperability as recommended by the JSON specification.
+    """
+
     # json module by default always produces str while loads accepts bytes
     # thus we must force bytes conversion
     # we use UTF-8 since it is the recommended encoding for interoperability
     # see https://docs.python.org/3/library/json.html#character-encodings
     def as_bytes(self, raw_message: Any, *args: Any, **kwargs: Any) -> bytes:  # type: ignore[override]
+        """Convert message to JSON bytes using UTF-8 encoding.
+
+        Args:
+            raw_message: The message to serialize.
+            *args: Additional arguments for json.dumps.
+            **kwargs: Additional keyword arguments for json.dumps.
+
+        Returns:
+            JSON message as UTF-8 encoded bytes.
+        """
         message = json.dumps(raw_message, *args, **kwargs)
         return message.encode("utf-8")
 
@@ -118,11 +188,15 @@ try:
 except ImportError as exc:
 
     class MsgPackSerializer(MissingSerializer):
+        """MessagePack serializer that raises an exception when msgpack is not available."""
+
         exception = exc
 
 else:
 
     class MsgPackSerializer(BaseMessageSerializer):  # type: ignore
+        """MessagePack serializer using the msgpack library."""
+
         as_bytes = staticmethod(msgpack.packb)  # pyright: ignore
         from_bytes = staticmethod(msgpack.unpackb)  # pyright: ignore
 
@@ -157,6 +231,19 @@ class SerializersRegistry:
     def get_serializer(
         self, format: str, *args: Any, **kwargs: Any
     ) -> BaseMessageSerializer:
+        """Get a serializer instance for the specified format.
+
+        Args:
+            format: The serialization format name.
+            *args: Arguments to pass to the serializer constructor.
+            **kwargs: Keyword arguments to pass to the serializer constructor.
+
+        Returns:
+            An instance of the requested serializer.
+
+        Raises:
+            SerializerDoesNotExist: If the format is not registered.
+        """
         try:
             serializer_class = self._registry[format]
         except KeyError:

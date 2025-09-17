@@ -1,3 +1,9 @@
+"""Base middleware implementation for the fast-channels framework.
+
+This module provides the abstract base class for implementing ASGI middleware
+that can be used to wrap channel applications.
+"""
+
 from fast_channels.type_defs import (
     ASGIReceiveCallable,
     ASGISendCallable,
@@ -18,6 +24,9 @@ class BaseMiddleware:
     def __init__(self, inner: ChannelApplication):
         """
         Middleware constructor - just takes inner application.
+
+        Args:
+            inner: The inner ASGI application to wrap.
         """
         self.inner: ChannelApplication = inner
 
@@ -27,6 +36,14 @@ class BaseMiddleware:
         """
         ASGI application; can insert things into the scope and run asynchronous
         code.
+
+        Args:
+            scope: The ASGI scope dictionary.
+            receive: ASGI receive callable.
+            send: ASGI send callable.
+
+        Returns:
+            The result of calling the inner application.
         """
         # Copy scope to stop changes going upstream
         scope = dict(scope)
