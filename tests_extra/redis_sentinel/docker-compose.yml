@@ -1,0 +1,29 @@
+version: "3"
+services:
+  redis-master:
+    image: redis:7
+    container_name: redis-master
+    ports:
+      - "6379:6379"
+    networks:
+      - redis-net
+    command: redis-server --requirepass channels_redis
+
+  redis-sentinel:
+    image: bitnami/redis-sentinel:latest
+    container_name: redis-sentinel
+    ports:
+      - "26379:26379"
+    networks:
+      - redis-net
+    environment:
+      - REDIS_MASTER_HOST=redis-master
+      - REDIS_MASTER_SET=sentinel
+      - REDIS_SENTINEL_QUORUM=1
+      - REDIS_MASTER_PASSWORD=channels_redis
+    depends_on:
+      - redis-master
+
+networks:
+  redis-net:
+    driver: bridge
