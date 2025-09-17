@@ -134,6 +134,33 @@ When adding new features, please include appropriate tests in the `tests` direct
 - Include both success and failure cases
 - Use the fixtures and utilities provided by the testing framework
 
+### Redis Sentinel Testing
+
+The project includes additional tests for Redis Sentinel compatibility in the `tests_extra` directory, run separately
+to verify fast-channels works correctly with Redis Sentinel clusters.
+
+#### Running Redis Sentinel tests locally
+
+```bash
+# Run with Docker (full setup and teardown)
+tests_extra/redis_sentinel/run_test.sh
+
+# Run in cache mode (keeps cluster running for faster subsequent tests)
+tests_extra/redis_sentinel/run_test.sh --cache
+
+# Or using tox
+tox -e extras
+```
+
+#### Test environment
+
+The Redis Sentinel tests:
+- Use a separate test suite in `tests_extra/redis_sentinel/tests/`
+- Test compatibility and functionality, **not coverage** (coverage metrics are not collected)
+- Run against a real Redis Sentinel cluster via Docker Compose
+- Execute automatically in CI with GitHub Actions services
+
+
 ## Validate your changes before submission
 
 Before creating a pull request, please ensure your code meets the project's standards:
