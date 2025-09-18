@@ -1,3 +1,9 @@
+## v1.0.0 (2025-09-18)
+
+### Fix
+
+- add full tutorial demo image and update Redis port for sandbox worker
+
 ## v0.1.1 (2025-09-18)
 
 ### Fix
