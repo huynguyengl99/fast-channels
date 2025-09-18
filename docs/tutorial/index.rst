@@ -19,6 +19,11 @@ By the end of this tutorial, you'll have created a WebSocket chat demo applicati
 The final application showcases the power of Fast Channels for building scalable, real-time applications with multiple
 communication patterns.
 
+.. image:: ../_static/full-demo.png
+   :alt: Fast Channels Demo Application
+   :align: center
+   :width: 100%
+
 Two Ways to Follow This Tutorial
 --------------------------------
 

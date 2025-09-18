@@ -29,7 +29,7 @@ def main():
 
     print("🔗 Connecting to Redis...")
     # Use same Redis settings as in tasks.py
-    redis_conn = Redis(host="localhost", port=6379, db=1)
+    redis_conn = Redis(host="localhost", port=6399, db=1)
 
     # Test Redis connection
     try:
@@ -37,7 +37,7 @@ def main():
         print("✅ Redis connection successful!")
     except Exception as e:
         print(f"❌ Redis connection failed: {e}")
-        print("Make sure Redis is running on localhost:6379")
+        print("Make sure Redis is running on localhost:6399")
         sys.exit(1)
 
     # Create queue

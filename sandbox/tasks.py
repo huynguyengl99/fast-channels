@@ -16,7 +16,7 @@ from sandbox.layers import setup_layers
 setup_layers()
 
 # Redis connection for RQ
-redis_conn = Redis(host="localhost", port=6379, db=1)  # Use different DB than channels
+redis_conn = Redis(host="localhost", port=6399, db=1)  # Use different DB than channels
 job_queue = Queue("background_jobs", connection=redis_conn)
 
 
