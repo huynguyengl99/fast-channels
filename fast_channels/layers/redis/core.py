@@ -571,8 +571,10 @@ class RedisChannelLayer(BaseChannelLayer):
 
         channel_names = [
             x.decode("utf8")
-            for x in await connection.zrange(  # pyright: ignore[reportUnknownMemberType]
-                key, 0, -1
+            for x in (
+                await connection.zrange(  # pyright: ignore[reportUnknownMemberType]
+                    key, 0, -1
+                )
             )
         ]
 

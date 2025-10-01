@@ -18,12 +18,12 @@ docs = [
   "sphinx_rtd_theme"
 ]
 lint = [
-  "black>=25.1.0,<26",
+  "black>=25.9.0,<26",
   "interrogate>=1.7.0",
   "mypy>=1.15.0",
   "pre-commit>=3.4.0,<4.0.0",
   "pyright[nodejs]>=1.1.400,<2",
-  "ruff>=0.11.3,<0.12",
+  "ruff==0.13.2",
   "toml-sort>=0.24.2,<0.25"
 ]
 test = [
