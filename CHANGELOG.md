@@ -1,3 +1,10 @@
+## v1.0.1 (2025-10-01)
+
+### Fix
+
+- **black**: update black and fix lint error
+- **types**: resolve type errors across sandbox project
+
 ## v1.0.0 (2025-09-18)
 
 ### Fix
