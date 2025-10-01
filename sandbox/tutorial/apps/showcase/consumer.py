@@ -10,6 +10,8 @@ TODO:
 3. Add your own consumer types as needed
 """
 
+from typing import Any
+
 from fast_channels.consumer.websocket import (
     AsyncJsonWebsocketConsumer,
     AsyncWebsocketConsumer,
@@ -27,26 +29,34 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         await self.accept()
         # TODO: Customize join message
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "chat_room",
             {"type": "chat_message", "message": "📢 Someone joined the chat"},
         )
 
-    async def disconnect(self, code):
+    async def disconnect(self, code: int) -> None:
         await super().disconnect(code)
         # TODO: Customize leave message
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "chat_room",
             {"type": "chat_message", "message": "❌ Someone left the chat."},
         )
 
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+    async def receive(
+        self,
+        text_data: str | None = None,
+        bytes_data: bytes | None = None,
+        **kwargs: Any,
+    ) -> None:
         # TODO: Add message processing logic
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "chat_room", {"type": "chat_message", "message": f"💬 {text_data}"}
         )
 
-    async def chat_message(self, event):
+    async def chat_message(self, event: dict[str, Any]) -> None:
         """Called when someone has messaged our chat."""
         await self.send(event["message"])
 
@@ -62,6 +72,7 @@ class ReliableChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         await self.accept()
         # TODO: Customize connection message
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "reliable_chat",
             {
@@ -70,21 +81,28 @@ class ReliableChatConsumer(AsyncWebsocketConsumer):
             },
         )
 
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+    async def receive(
+        self,
+        text_data: str | None = None,
+        bytes_data: bytes | None = None,
+        **kwargs: Any,
+    ) -> None:
         # TODO: Add reliable message processing
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "reliable_chat",
             {"type": "reliable_chat_message", "message": f"📨 {text_data}"},
         )
 
-    async def disconnect(self, close_code):
+    async def disconnect(self, code: int) -> None:
         # TODO: Add disconnect handling
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "reliable_chat",
             {"type": "reliable_chat_message", "message": "🚪 Left reliable chat!"},
         )
 
-    async def reliable_chat_message(self, event):
+    async def reliable_chat_message(self, event: dict[str, Any]) -> None:
         """Called when someone has messaged our reliable chat."""
         await self.send(event["message"])
 
@@ -100,6 +118,7 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         await self.accept()
         # TODO: Customize notification connection message
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "notifications",
             {
@@ -108,8 +127,9 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
             },
         )
 
-    async def receive_json(self, content, **kwargs):
+    async def receive_json(self, content: Any, **kwargs: Any) -> None:
         # TODO: Add JSON notification processing logic
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "notifications",
             {
@@ -123,11 +143,11 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
             },
         )
 
-    async def disconnect(self, close_code):
+    async def disconnect(self, code: int) -> None:
         # TODO: Add notification disconnect handling if needed
         pass
 
-    async def notification_message(self, event):
+    async def notification_message(self, event: dict[str, Any]) -> None:
         """Called when a notification is sent to the group."""
         await self.send_json(event["data"])
 

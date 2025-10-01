@@ -2,6 +2,8 @@
 Layers Combo Consumers - Different channel layer types working together.
 """
 
+from typing import Any
+
 from fast_channels.consumer.websocket import (
     AsyncJsonWebsocketConsumer,
     AsyncWebsocketConsumer,
@@ -19,26 +21,34 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         """Handle WebSocket connection for chat."""
         await self.accept()
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "chat_room",
             {"type": "chat_message", "message": "📢 Someone joined the chat"},
         )
 
-    async def disconnect(self, code):
+    async def disconnect(self, code: int) -> None:
         """Handle WebSocket disconnection for chat."""
         await super().disconnect(code)
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "chat_room",
             {"type": "chat_message", "message": "❌ Someone left the chat."},
         )
 
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+    async def receive(
+        self,
+        text_data: str | None = None,
+        bytes_data: bytes | None = None,
+        **kwargs: Any,
+    ) -> None:
         """Handle incoming WebSocket messages for chat."""
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "chat_room", {"type": "chat_message", "message": f"💬 {text_data}"}
         )
 
-    async def chat_message(self, event):
+    async def chat_message(self, event: dict[str, Any]) -> None:
         """
         Called when someone has messaged our chat.
         """
@@ -54,12 +64,13 @@ class ReliableChatConsumer(AsyncWebsocketConsumer):
     channel_layer_alias = "queue"
     groups = ["reliable_chat"]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         # Use the pre-configured queue layer (Redis queue-based)
 
     async def connect(self):
         await self.accept()
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "reliable_chat",
             {
@@ -68,19 +79,26 @@ class ReliableChatConsumer(AsyncWebsocketConsumer):
             },
         )
 
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+    async def receive(
+        self,
+        text_data: str | None = None,
+        bytes_data: bytes | None = None,
+        **kwargs: Any,
+    ) -> None:
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "reliable_chat",
             {"type": "reliable_chat_message", "message": f"📨 {text_data}"},
         )
 
-    async def disconnect(self, close_code):
+    async def disconnect(self, code: int) -> None:
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "reliable_chat",
             {"type": "reliable_chat_message", "message": "🚪 Left reliable chat!"},
         )
 
-    async def reliable_chat_message(self, event):
+    async def reliable_chat_message(self, event: dict[str, Any]) -> None:
         """
         Called when someone has messaged our reliable chat.
         """
@@ -97,6 +115,7 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
 
     async def connect(self):
         await self.accept()
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "notifications",
             {
@@ -105,8 +124,9 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
             },
         )
 
-    async def receive_json(self, content, **kwargs):
+    async def receive_json(self, content: Any, **kwargs: Any) -> None:
         # Echo notification back to all connected clients
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "notifications",
             {
@@ -120,10 +140,10 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
             },
         )
 
-    async def disconnect(self, close_code):
+    async def disconnect(self, code: int) -> None:
         pass  # No disconnect message for notifications
 
-    async def notification_message(self, event):
+    async def notification_message(self, event: dict[str, Any]) -> None:
         """
         Called when a notification is sent to the group.
         """
@@ -141,17 +161,23 @@ class AnalyticsConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         await self.accept()
 
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+    async def receive(
+        self,
+        text_data: str | None = None,
+        bytes_data: bytes | None = None,
+        **kwargs: Any,
+    ) -> None:
         # Process analytics event
+        assert self.channel_layer
         await self.channel_layer.group_send(
             "analytics",
             {"type": "analytics_message", "message": f"📊 Analytics: {text_data}"},
         )
 
-    async def disconnect(self, close_code):
+    async def disconnect(self, code: int) -> None:
         pass
 
-    async def analytics_message(self, event):
+    async def analytics_message(self, event: dict[str, Any]) -> None:
         """
         Called when an analytics event is sent to the group.
         """

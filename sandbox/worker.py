@@ -12,6 +12,7 @@ Run this alongside your FastAPI application to handle background job processing.
 import os
 import signal
 import sys
+from types import FrameType
 
 # Add the project root to Python path so we can import our modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # noqa
@@ -33,7 +34,7 @@ def main():
 
     # Test Redis connection
     try:
-        redis_conn.ping()
+        redis_conn.ping()  # type: ignore[misc]
         print("✅ Redis connection successful!")
     except Exception as e:
         print(f"❌ Redis connection failed: {e}")
@@ -51,9 +52,9 @@ def main():
     worker = Worker([queue], connection=redis_conn)
 
     # Handle graceful shutdown
-    def signal_handler(sig, frame):
+    def signal_handler(sig: int, frame: FrameType | None) -> None:
         print("\n🛑 Shutting down worker gracefully...")
-        worker.request_stop()
+        worker.request_stop(sig, frame)  # type: ignore[misc]
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)

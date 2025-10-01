@@ -107,7 +107,7 @@ ASGIApplication = ASGI3Application
 class ASGIApplicationProtocol(Protocol):
     """Protocol for ASGI application wrappers that use consumers."""
 
-    consumer_class: "AsyncConsumer"
+    consumer_class: "AsyncConsumer | None"
     """The consumer class to instantiate for handling connections."""
 
     # Accepts any initialization kwargs passed to the consumer class.

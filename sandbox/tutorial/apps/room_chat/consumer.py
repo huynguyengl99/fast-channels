@@ -10,6 +10,8 @@ TODO:
 3. Implement room-specific logic (permissions, etc.)
 """
 
+from typing import Any
+
 from fast_channels.consumer.websocket import AsyncWebsocketConsumer
 
 
@@ -23,6 +25,7 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
 
     async def connect(self):
         # Extract room name from path parameters
+        assert self.channel_layer
         self.room_name = self.scope["path_params"]["room_name"]
         self.room_group_name = f"room_{self.room_name}"
 
@@ -40,8 +43,9 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             },
         )
 
-    async def disconnect(self, code):
+    async def disconnect(self, code: int) -> None:
         # Leave room group
+        assert self.channel_layer
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
         # TODO: Customize your leave message
@@ -53,14 +57,20 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             },
         )
 
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+    async def receive(
+        self,
+        text_data: str | None = None,
+        bytes_data: bytes | None = None,
+        **kwargs: Any,
+    ) -> None:
+        assert self.channel_layer
         # TODO: Add message processing/filtering logic here
         # Send message to room group
         await self.channel_layer.group_send(
             self.room_group_name, {"type": "room_message", "message": f"💬 {text_data}"}
         )
 
-    async def room_message(self, event):
+    async def room_message(self, event: dict[str, Any]) -> None:
         """
         Called when someone has messaged our room.
         """

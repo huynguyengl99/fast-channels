@@ -109,13 +109,14 @@ def process_default(job_id: str, content: str, channel_name: str) -> dict[str, A
     return {"status": "completed", "result": result, "job_id": job_id}
 
 
-def _send_result_to_client(channel_name: str, message: str):
+def _send_result_to_client(channel_name: str, message: str) -> None:
     """
     Send the result back to the WebSocket client through the channel layer.
     """
     try:
         # Get the chat channel layer (same as used by BackgroundJobConsumer)
         channel_layer = get_channel_layer("chat")
+        assert channel_layer
 
         # Use asgiref to convert async call to sync
         async_to_sync(channel_layer.send)(
@@ -143,7 +144,7 @@ def queue_job(job_type: str, content: str, channel_name: str) -> str:
         job_type = "default"
 
     job_func = JOB_FUNCTIONS[job_type]
-    job = job_queue.enqueue(
+    job = job_queue.enqueue(  # type: ignore[misc]
         job_func, job_type + "_" + str(int(time.time())), content, channel_name
     )
 

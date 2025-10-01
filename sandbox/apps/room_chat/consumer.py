@@ -2,6 +2,8 @@
 Room Chat Consumer - Dynamic room-based messaging.
 """
 
+from typing import Any
+
 from fast_channels.consumer.websocket import AsyncWebsocketConsumer
 
 
@@ -20,6 +22,7 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
         await self.accept()
 
         # Join room group
+        assert self.channel_layer
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
 
         # Send join notification to the room
@@ -31,8 +34,9 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             },
         )
 
-    async def disconnect(self, code):
+    async def disconnect(self, code: int) -> None:
         # Leave room group
+        assert self.channel_layer
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
         # Send leave notification to the room
@@ -44,13 +48,19 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             },
         )
 
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+    async def receive(
+        self,
+        text_data: str | None = None,
+        bytes_data: bytes | None = None,
+        **kwargs: Any,
+    ) -> None:
         # Send message to room group
+        assert self.channel_layer
         await self.channel_layer.group_send(
             self.room_group_name, {"type": "room_message", "message": f"💬 {text_data}"}
         )
 
-    async def room_message(self, event):
+    async def room_message(self, event: dict[str, Any]) -> None:
         """
         Called when someone has messaged our room.
         """

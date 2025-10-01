@@ -11,7 +11,6 @@ from fast_channels.exceptions import StopConsumer
 from fast_channels.layers import BaseChannelLayer, get_channel_layer
 from fast_channels.type_defs import (
     ASGIApplication,
-    ASGIApplicationProtocol,
     ASGIReceiveCallable,
     ASGISendCallable,
     ChannelMessage,
@@ -122,7 +121,7 @@ class AsyncConsumer:
         await self.base_send(message)
 
     @classmethod
-    def as_asgi(cls, **initkwargs: Any) -> ASGIApplicationProtocol:
+    def as_asgi(cls, **initkwargs: Any) -> Any:  # Compatible with all ASGI frameworks
         """
         Return an ASGI v3 single callable that instantiates a consumer instance
         per scope. Similar in purpose to Django's as_view().
@@ -171,4 +170,4 @@ class AsyncConsumer:
 
         # Take name and docstring from class
         functools.update_wrapper(wrapper, cls, updated=())
-        return cast(ASGIApplicationProtocol, wrapper)
+        return wrapper

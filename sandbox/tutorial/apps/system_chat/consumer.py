@@ -10,6 +10,8 @@ TODO:
 3. Handle disconnections if needed
 """
 
+from typing import Any
+
 from fast_channels.consumer.websocket import AsyncWebsocketConsumer
 
 
@@ -24,11 +26,16 @@ class SystemMessageConsumer(AsyncWebsocketConsumer):
         # TODO: Customize your welcome message
         await self.send("🔧 System: Connection established!")
 
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+    async def receive(
+        self,
+        text_data: str | None = None,
+        bytes_data: bytes | None = None,
+        **kwargs: Any,
+    ) -> None:
         # TODO: Add your message processing logic here
         # Example: Echo back system message directly without using layers
         await self.send(f"🔧 System Echo: {text_data}")
 
-    async def disconnect(self, close_code):
+    async def disconnect(self, code: int) -> None:
         # TODO: Add any cleanup logic here if needed
         pass

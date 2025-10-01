@@ -1,5 +1,5 @@
 {
-    "include": ["fast_channels"],
+    "include": ["fast_channels", "sandbox"],
     "typeCheckingMode": "strict",
     "reportMissingTypeArgument": "warning",
     "reportMissingTypeStubs": "warning",

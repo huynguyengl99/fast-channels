@@ -110,34 +110,37 @@ async def send_to_multiple_layers():
     print("🚀 Broadcasting to multiple layers...")
 
     # Send to chat (fast pub/sub)
-    await chat_layer.group_send(
-        "chat_room",
-        {
-            "type": "chat_message",
-            "message": "💬 Multi-layer broadcast: Chat message",
-        },
-    )
+    if chat_layer:
+        await chat_layer.group_send(
+            "chat_room",
+            {
+                "type": "chat_message",
+                "message": "💬 Multi-layer broadcast: Chat message",
+            },
+        )
 
     # Send to notifications (ephemeral)
-    await notifications_layer.group_send(
-        "notifications",
-        {
-            "type": "notification_message",
-            "data": {
-                "type": "broadcast",
-                "message": "🔔 Multi-layer broadcast: Notification",
+    if notifications_layer:
+        await notifications_layer.group_send(
+            "notifications",
+            {
+                "type": "notification_message",
+                "data": {
+                    "type": "broadcast",
+                    "message": "🔔 Multi-layer broadcast: Notification",
+                },
             },
-        },
-    )
+        )
 
     # Send to queue (reliable)
-    await queue_layer.group_send(
-        "reliable_chat",
-        {
-            "type": "reliable_chat_message",
-            "message": "📨 Multi-layer broadcast: Reliable message",
-        },
-    )
+    if queue_layer:
+        await queue_layer.group_send(
+            "reliable_chat",
+            {
+                "type": "reliable_chat_message",
+                "message": "📨 Multi-layer broadcast: Reliable message",
+            },
+        )
 
     print("✅ Multi-layer broadcast complete!")
 

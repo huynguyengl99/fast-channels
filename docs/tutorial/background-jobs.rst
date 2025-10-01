@@ -152,15 +152,20 @@ Understanding the Background Jobs Consumer
 
 Let's break down how this consumer works:
 
-**Message Processing:**
-  - Accepts both JSON and plain text messages
-  - Extracts job type from JSON data (e.g., ``{"type": "translate", "content": "hello"}``)
-  - Falls back to "default" job type for plain text
+**JSON-First Design:**
+  - Extends ``AsyncJsonWebsocketConsumer`` for automatic JSON parsing
+  - Expects structured messages: ``{"type": "translate", "content": "hello"}``
+  - All responses are JSON with consistent format: ``{"status": "queuing", "message": "...", "job_id": "..."}``
 
 **Job Queuing:**
   - ``queue_job()`` sends work to background queue immediately
-  - Returns job ID for tracking
-  - Consumer remains responsive during job processing
+  - Returns job ID for tracking and client-side status updates
+  - Consumer remains responsive during job processing with immediate feedback
+
+**Structured Response Flow:**
+  1. ``{"status": "queuing"}`` - Job is being processed
+  2. ``{"status": "queued", "job_id": "abc123"}`` - Job successfully queued
+  3. ``{"type": "job_result", "message": "..."}`` - Final results from worker
 
 **Result Handling:**
   - ``job_result()`` method receives results from background workers
@@ -247,10 +252,11 @@ Visit http://localhost:8080 in your browser. You should see the "Background Job 
 - Select "AI Generation" and mention topics like "weather", "food", or "help"
 
 **Expected Behavior:**
- - Immediate confirmation that job was queued
- - Job ID display for tracking
- - Real-time result delivery when processing completes
+ - Immediate JSON confirmation that job was queued with status indicators
+ - Job ID display for tracking (shown in parentheses)
+ - Real-time result delivery when processing completes with ✅ indicator
  - Different processing times for different job types (1-4 seconds)
+ - Structured JSON responses for better client-side handling
 
 .. image:: ../_static/background-jobs.png
    :alt: Background Jobs demo showing asynchronous processing with real-time updates
@@ -287,16 +293,16 @@ The system includes several areas for customization:
 .. code-block:: python
 
     # In consumer.py, add preprocessing:
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+    async def receive_json(self, content: dict[str, Any], **kwargs: Any) -> None:
         # Add validation
-        if not text_data or len(text_data.strip()) == 0:
-            await self.send("❌ Empty message not allowed")
+        if not content.get("content") or not content.get("content", "").strip():
+            await self.send_json({"status": "error", "message": "❌ Empty message not allowed"})
             return
 
         # Add rate limiting
         if hasattr(self, 'last_job_time'):
             if time.time() - self.last_job_time < 1:  # 1 second cooldown
-                await self.send("⏳ Please wait before sending another job")
+                await self.send_json({"status": "error", "message": "⏳ Please wait before sending another job"})
                 return
 
         self.last_job_time = time.time()

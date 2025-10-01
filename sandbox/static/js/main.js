@@ -49,9 +49,28 @@ wsSystem.onmessage = function(event) {
     addSystemMessage(event.data);
 };
 
-// Handle background job messages
+// Handle background job messages (JSON format)
 wsBackgroundJob.onmessage = function(event) {
-    addJobMessage(event.data);
+    try {
+        var data = JSON.parse(event.data);
+        var message = data.message || event.data;
+
+        // Add status indicator for different types of responses
+        if (data.status === "queuing") {
+            addJobMessage("⏳ " + message);
+        } else if (data.status === "queued") {
+            addJobMessage("📋 " + message + " (ID: " + data.job_id + ")");
+        } else if (data.status === "error") {
+            addJobMessage("❌ " + message);
+        } else if (data.type === "job_result") {
+            addJobMessage("✅ " + message);
+        } else {
+            addJobMessage(message);
+        }
+    } catch (e) {
+        // Fallback for non-JSON messages
+        addJobMessage(event.data);
+    }
 };
 
 // =============================================================================

@@ -16,6 +16,7 @@ import signal
 import subprocess
 import sys
 import time
+from types import FrameType
 
 
 def main():  # noqa
@@ -26,7 +27,7 @@ def main():  # noqa
     worker_process = None
     app_process = None
 
-    def cleanup(signum=None, frame=None):
+    def cleanup(signum: int | None = None, frame: FrameType | None = None) -> None:
         """Clean up processes on exit."""
         print("\n🛑 Shutting down...")
 

@@ -10,13 +10,13 @@ TODO:
 3. Customize job types and processing logic
 """
 
-import json
+from typing import Any, cast
 
-from fast_channels.consumer.websocket import AsyncWebsocketConsumer
+from fast_channels.consumer.websocket import AsyncJsonWebsocketConsumer
 from sandbox.tasks import queue_job
 
 
-class BackgroundJobConsumer(AsyncWebsocketConsumer):
+class BackgroundJobConsumer(AsyncJsonWebsocketConsumer):
     """
     Consumer for processing messages with real background jobs.
     """
@@ -27,35 +27,48 @@ class BackgroundJobConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         await self.accept()
         # TODO: Customize your welcome message
-        await self.send("🔄 Background Job Processor: Connected!")
+        await self.send_json(
+            {
+                "status": "connected",
+                "message": "🔄 Background Job Processor: Connected!",
+            }
+        )
 
-    async def receive(self, text_data=None, bytes_data=None, **kwargs):
+    async def receive_json(self, content: dict[str, Any], **kwargs: Any) -> None:
         try:
-            # Parse message if it's JSON, otherwise treat as plain text
-            try:
-                data = json.loads(text_data)
-                job_type = data.get("type", "default")
-                content = data.get("content", text_data)
-            except (json.JSONDecodeError, AttributeError):
-                job_type = "default"
-                content = text_data
+            # Extract job type and content from JSON
+            job_type = content.get("type", "default")
+            job_content = cast(str, content.get("content"))
 
             # TODO: Customize your job queuing logic
-            await self.send(f"⏳ Queuing {job_type} job: {content}")
+            await self.send_json(
+                {
+                    "status": "queuing",
+                    "message": f"⏳ Queuing {job_type} job: {job_content}",
+                }
+            )
 
-            job_id = queue_job(job_type, content, self.channel_name)
-            await self.send(f"📋 Job {job_id} queued successfully!")
+            job_id = queue_job(job_type, job_content, self.channel_name)
+            await self.send_json(
+                {
+                    "status": "queued",
+                    "job_id": job_id,
+                    "message": f"📋 Job {job_id} queued successfully!",
+                }
+            )
 
         except Exception as e:
-            await self.send(f"❌ Error queuing job: {str(e)}")
+            await self.send_json(
+                {"status": "error", "message": f"❌ Error queuing job: {str(e)}"}
+            )
 
-    async def job_result(self, event):
+    async def job_result(self, event: dict[str, Any]) -> None:
         """
         Handle job results sent back from background workers.
         TODO: Customize result processing if needed
         """
-        await self.send(event["message"])
+        await self.send_json({"type": "job_result", "message": event["message"]})
 
-    async def disconnect(self, close_code):
+    async def disconnect(self, code: int) -> None:
         # TODO: Add cleanup logic if needed
         pass
