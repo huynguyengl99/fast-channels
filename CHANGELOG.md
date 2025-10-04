@@ -1,3 +1,9 @@
+## v1.0.2 (2025-10-04)
+
+### Fix
+
+- **layers**: add has_layers function and update exports
+
 ## v1.0.1 (2025-10-01)
 
 ### Fix
