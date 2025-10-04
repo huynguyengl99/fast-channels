@@ -113,3 +113,13 @@ def unregister_channel_layer(alias: str) -> None:
     Remove a channel layer from the registry.
     """
     channel_layers.unregister(alias)
+
+
+def has_layers() -> bool:
+    """
+    Check if any channel layers are registered.
+
+    Returns:
+        True if channel layers are registered, False otherwise.
+    """
+    return len(channel_layers) > 0

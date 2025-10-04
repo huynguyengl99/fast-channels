@@ -14,6 +14,8 @@ Registry Functions
 
 .. autofunction:: fast_channels.layers.unregister_channel_layer
 
+.. autofunction:: fast_channels.layers.has_layers
+
 Registry Class
 --------------
 
